@@ -5,6 +5,7 @@ trait Cell {
   def col: ID
   def value: Val
   def isTrain: Boolean
+  def inMatrix: ObservedMatrix
 }
 
 trait ObservedMatrix {
