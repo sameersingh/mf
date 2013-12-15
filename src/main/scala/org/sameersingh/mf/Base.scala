@@ -11,3 +11,9 @@ trait Val {
   def double: Double
   def apply = double
 }
+
+case class SimpleID(id: String, idx: Int, domain: String) extends ID {
+  override def toString = id
+}
+
+case class DoubleValue(double: Double) extends Val

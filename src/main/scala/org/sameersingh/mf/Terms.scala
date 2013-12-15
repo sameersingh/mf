@@ -2,16 +2,22 @@ package org.sameersingh.mf
 
 trait Term {
   def params: Seq[Parameters]
+
   // for stochastic estimation, the value for a cell
   def value(c: Cell): Double
+
   def gradient(c: Cell): Gradients
+
+  def avgTrainingValue(m: ObservedMatrix): Double = m.trainCells.foldLeft(0.0)(_ + value(_)) / m.trainCells.size.toDouble
+
+  def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.trainCells.size.toDouble
 }
 
 class DotTerm(val rowFactors: DoubleDenseMatrix,
               val colFactors: DoubleDenseMatrix,
               val weight: ParamDouble,
               val target: ObservedMatrix)
-  extends Term {
+      extends Term {
 
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params(target, "weight", w), target)
@@ -22,12 +28,12 @@ class DotTerm(val rowFactors: DoubleDenseMatrix,
 
   def params = _params
 
-  def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1*uv._2)
+  def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
 
   def error(c: Cell) = c.value.double - dot(c)
 
   // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double =  if (c.inMatrix == target) {
+  def value(c: Cell): Double = if (c.inMatrix == target) {
     StrictMath.pow(error(c), 2.0)
   } else 0.0
 
@@ -40,12 +46,12 @@ class DotTerm(val rowFactors: DoubleDenseMatrix,
     // compute the error for the cell
     val err = error(c)
     // do the rows first
-    for(k <- 0 until rowFactors.numCols) {
+    for (k <- 0 until rowFactors.numCols) {
       rowGrads(k) = -2.0 * weight() * err * col(k)
     }
     grads(rowFactors) = (c.row -> rowGrads)
     // then do the cols
-    for(k <- 0 until colFactors.numCols) {
+    for (k <- 0 until colFactors.numCols) {
       colGrads(k) = -2.0 * weight() * err * row(k)
     }
     grads(colFactors) = (c.col -> colGrads)
@@ -78,32 +84,40 @@ class DotTermWithBias(rowFactors: DoubleDenseMatrix,
 }
 
 class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, val numCells: Int = 1)
-  extends Term {
+      extends Term {
   def this(params: ParameterSet, f: String, n: Int) = this(params(f), params.l2RegCoeff(f), n)
 
   val params: Seq[Parameters] = Seq(factors)
 
+  def value(id: ID): Double = overallWeight * factors.r(id).map(u => u * u).sum
+
+  def value: Double = factors.rids.map(id => value(id)).sum
+
   // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double = if(c.row.domain == factors.name) {
-    (1.0/numCells)*weight()*factors.r(c.row).foldLeft(0.0)((s,u) => s + u*u)
-  } else if(c.col.domain == factors.name) {
-    (1.0/numCells)*weight()*factors.r(c.col).foldLeft(0.0)((s,v) => s + v*v)
-  } else 0.0
+  def value(c: Cell): Double =
+    if (c.row.domain == factors.name) {
+      value(c.row) / numCells
+    } else if (c.col.domain == factors.name) {
+      value(c.col) / numCells
+    } else 0.0
+
+  lazy val overallWeight = weight() * (1.0 / (factors.numCols * factors.rids.size))
+  lazy val gradientWeight = 2.0 * overallWeight / numCells
 
   def gradient(c: Cell): Gradients = {
     val grads = new Gradients
-    if(c.row.domain == factors.name) {
+    if (c.row.domain == factors.name) {
       val gs = Array.fill(factors.numCols)(0.0)
       val row = factors.r(c.row)
-      for(k <- 0 until factors.numCols) {
-        gs(k) = 2.0 * weight() * (1.0/numCells) * row(k)
+      for (k <- 0 until factors.numCols) {
+        gs(k) = gradientWeight * row(k)
       }
       grads(factors) = (c.row -> gs)
-    } else if(c.col.domain == factors.name) {
+    } else if (c.col.domain == factors.name) {
       val gs = Array.fill(factors.numCols)(0.0)
       val col = factors.r(c.col)
-      for(k <- 0 until factors.numCols) {
-        gs(k) = 2.0 * weight() * (1.0/numCells) * col(k)
+      for (k <- 0 until factors.numCols) {
+        gs(k) = gradientWeight * col(k)
       }
       grads(factors) = (c.col -> gs)
     }
