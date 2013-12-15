@@ -122,8 +122,8 @@ class LearningTest {
       val (term, l2r, l2c) = terms(m)
       val trainer = new BatchTrainer(Seq(m), Seq(term, l2r, l2c))
       train(trainer, term, l2r, l2c, m)
-      assertEquals(0.0, term.avgTrainingValue(m), 0.005)
-      assertEquals(0.0, term.avgTestValue(m), 0.005)
+      assertEquals(0.0, term.avgTrainingValue(m), 0.001)
+      assertEquals(0.0, term.avgTestValue(m), 0.0025)
     }
   }
 }
