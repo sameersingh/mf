@@ -23,5 +23,5 @@ trait ObservedMatrix {
 
   def testCells = cells.filterNot(_.isTrain)
 
-  override def toString = "%s\nTrain(%d):\t%s\nTest(%d):\t%s" format(name, trainCells.size, trainCells.mkString("\t"), testCells.size, testCells.mkString("\t"))
+  override def toString = "%s\nTrain(%d):\t%s\nTest(%d):\t%s" format(name, trainCells.size, trainCells.take(5).mkString("\t"), testCells.size, testCells.take(5).mkString("\t"))
 }

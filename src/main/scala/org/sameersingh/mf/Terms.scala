@@ -10,7 +10,7 @@ trait Term {
 
   def avgTrainingValue(m: ObservedMatrix): Double = m.trainCells.foldLeft(0.0)(_ + value(_)) / m.trainCells.size.toDouble
 
-  def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.trainCells.size.toDouble
+  def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.testCells.size.toDouble
 }
 
 class DotTerm(val rowFactors: DoubleDenseMatrix,

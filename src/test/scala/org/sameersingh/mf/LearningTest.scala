@@ -2,9 +2,9 @@ package org.sameersingh.mf
 
 import org.junit._
 import Assert._
-import java.util.Random
 import scala.collection.mutable.ArrayBuffer
 import org.sameersingh.mf.learner.{Trainer, BatchTrainer, SGDTrainer}
+import scala.util.Random
 
 @Test
 class LearningTest {
@@ -19,10 +19,10 @@ class LearningTest {
     val colFactors = new DoubleDenseMatrix("c_t", numComps)
     for (k <- 0 until numComps) {
       for (i <- 0 until numRows) {
-        rowFactors(SimpleID("r" + i, i, "r"), k) = random.nextGaussian() / math.sqrt(numComps.toDouble)
+        rowFactors(SimpleID(i, "r"), k) = random.nextGaussian() / math.sqrt(numComps.toDouble)
       }
       for (j <- 0 until numCols) {
-        colFactors(SimpleID("c" + j, j, "c"), k) = random.nextGaussian() / math.sqrt(numComps.toDouble)
+        colFactors(SimpleID(j, "c"), k) = random.nextGaussian() / math.sqrt(numComps.toDouble)
       }
     }
     //println("L2 R value     : " + new L2Regularization(rowFactors, new ParamDouble("w", 1.0)).value)
@@ -39,8 +39,8 @@ class LearningTest {
     }
     for (i <- 0 until numRows)
       for (j <- 0 until numCols) {
-        val rid = SimpleID("r" + i, i, "r")
-        val cid = SimpleID("c" + j, j, "c")
+        val rid = SimpleID(i, "r")
+        val cid = SimpleID(j, "c")
         val doubleValue = rowFactors.r(rid).zip(colFactors.r(cid)).map(uv => uv._1 * uv._2).sum + noiseVar * random.nextGaussian()
         val cell = new Cell {
           val row = rid
@@ -120,7 +120,7 @@ class LearningTest {
       val m = smallSingleMatrix(1, 0.01)
       //println(m)
       val (term, l2r, l2c) = terms(m)
-      val trainer = new BatchTrainer(Seq(m), Seq(term, l2r, l2c))
+      val trainer = new SGDTrainer(Seq(m), Seq(term, l2r, l2c))
       train(trainer, term, l2r, l2c, m)
       assertEquals(0.0, term.avgTrainingValue(m), 0.001)
       assertEquals(0.0, term.avgTestValue(m), 0.0025)
