@@ -19,13 +19,13 @@ class MatrixLoader {
     val matrix = new ObservedMatrix {
       val cells: Seq[Cell] = cellArray
 
-      lazy val trainCells: Seq[Cell] = super.trainCells
+      override lazy val trainCells: Seq[Cell] = super.trainCells
 
-      lazy val testCells: Seq[Cell] = super.testCells
+      override lazy val testCells: Seq[Cell] = super.testCells
 
-      lazy val rowIDs: Set[ID] = super.rowIDs
+      override lazy val rowIDs: Set[ID] = super.rowIDs
 
-      lazy val colIDs: Set[ID] = super.colIDs
+      override lazy val colIDs: Set[ID] = super.colIDs
 
       val name: String = matrixName
     }

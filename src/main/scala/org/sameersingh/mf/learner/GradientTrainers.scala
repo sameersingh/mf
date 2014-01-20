@@ -2,14 +2,20 @@ package org.sameersingh.mf.learner
 
 import org.sameersingh.mf._
 import scala.util.Random
+import cc.factorie._
 
+/**
+ * Trainers that perform optimization on observed matrices. They are responsible for minimizing the objective function.
+ *
+ * @author sameer
+ */
 trait Trainer {
   def round(initStepSize: Double): Unit
 
   def trainCells(t: ObservedMatrix) = t.trainCells
 }
 
-class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term]) extends Trainer {
+class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implicit val random: Random) extends Trainer {
 
   val params = terms.flatMap(_.params).distinct
 
@@ -22,7 +28,7 @@ class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term]) extends
   def round(initStepSize: Double) {
     var stepSize = initStepSize
     for (t <- targets) {
-      for (c <- trainCells(t)) {
+      for (c <- trainCells(t).shuffle) {
         update(c, stepSize)
       }
     }
@@ -48,9 +54,9 @@ class BatchTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term]) exten
 
 trait Sampling extends Trainer {
 
-  val random: Random = new Random(0)
+  def random: Random
 
-  def numSampledCells(t: ObservedMatrix): Int = 100
+  def numSampledCells(t: ObservedMatrix): Int = t.trainCells.size
 
   def defaultValue: Val = DoubleValue(0.0)
 

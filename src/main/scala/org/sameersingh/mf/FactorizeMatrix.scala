@@ -1,7 +1,7 @@
 package org.sameersingh.mf
 
 import scala.util.Random
-import org.sameersingh.mf.learner.SGDTrainer
+import org.sameersingh.mf.learner.{Sampling, SGDTrainer}
 
 /**
  * @author sameer
@@ -18,12 +18,12 @@ object FactorizeMatrix extends App {
   params += new DoubleDenseMatrix("c", numComps, () => random.nextGaussian() / 100.0)
   params(params[DoubleDenseMatrix]("r"), "L2RegCoeff") = 0.1
   params(params[DoubleDenseMatrix]("c"), "L2RegCoeff") = 0.1
-  val term = new DotTerm(params, "r", "c", 1.0, m)
+  val term = new LogisticDotTermWithBias(params, "r", "c", 1.0, m)
   val l2r = new L2Regularization(params, "r", m.trainCells.size)
   val l2c = new L2Regularization(params, "c", m.trainCells.size)
   val terms = Seq(term, l2r, l2c)
 
-  val trainer = new SGDTrainer(Seq(m), terms)
+  val trainer = new SGDTrainer(Seq(m), terms) with Sampling
   for (i <- 0 until 500) {
     println("-----------------------")
     println("        ROUND %d" format (i + 1))

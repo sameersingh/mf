@@ -2,6 +2,10 @@ package org.sameersingh.mf
 
 import scala.math._
 
+/**
+ * A single term in the objective function, defining the value and gradient.
+ * The objective is minimized, and therefore value and gradient should be computed assuming minimization.
+ */
 trait Term {
   def params: Seq[Parameters]
 
@@ -15,7 +19,10 @@ trait Term {
   def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.testCells.size.toDouble
 }
 
-class DotTerm(val rowFactors: DoubleDenseMatrix,
+/**
+ * A term that L2 distance between the true value and the dot product of the row and column factors for the given matrix
+ */
+class L2DotTerm(val rowFactors: DoubleDenseMatrix,
               val colFactors: DoubleDenseMatrix,
               val weight: ParamDouble,
               val target: ObservedMatrix)
@@ -61,12 +68,15 @@ class DotTerm(val rowFactors: DoubleDenseMatrix,
   }
 }
 
-class DotTermWithBias(rowFactors: DoubleDenseMatrix,
+/**
+ * Introduces biases for rows and columns, but otherwise identical to L2DotTerm
+ */
+class L2DotTermWithBias(rowFactors: DoubleDenseMatrix,
                       colFactors: DoubleDenseMatrix,
                       val rowBias: ParamVector,
                       val colBias: ParamVector,
                       weight: ParamDouble,
-                      target: ObservedMatrix) extends DotTerm(rowFactors, colFactors, weight, target) {
+                      target: ObservedMatrix) extends L2DotTerm(rowFactors, colFactors, weight, target) {
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
 
@@ -85,6 +95,9 @@ class DotTermWithBias(rowFactors: DoubleDenseMatrix,
   }
 }
 
+/**
+ * L2 Regularization for a given factor
+ */
 class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, val numCells: Int = 1)
   extends Term {
   def this(params: ParameterSet, f: String, n: Int) = this(params(f), params.l2RegCoeff(f), n)
@@ -127,6 +140,9 @@ class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, 
   }
 }
 
+/**
+ * Logistic loss suitable for binary matrices. The term is optimized by minimizing negative log-likelihood.
+ */
 class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
                       val colFactors: DoubleDenseMatrix,
                       val weight: ParamDouble,
@@ -151,7 +167,7 @@ class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
     val logZ = log(exp(score) + 1.0)
     val lprob = score - logZ
     val liprob = -logZ // log(1) - logZ
-    c.value.double * lprob + (1.0 - c.value.double) * liprob
+    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
   }
 
   // for stochastic estimation, the value for a cell
@@ -168,7 +184,7 @@ class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
     val score = dot(c)
     val escore = exp(score)
     val prob = escore / (escore + 1.0)
-    val direction = c.value.double - prob
+    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     // do the rows first
     for (k <- 0 until rowFactors.numCols) {
       rowGrads(k) = weight() * direction * col(k)
@@ -183,6 +199,9 @@ class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
   }
 }
 
+/**
+ * Include bias in the dot term, but otherwise same as LogisticDotTerm
+ */
 class LogisticDotTermWithBias(rowFactors: DoubleDenseMatrix,
                               colFactors: DoubleDenseMatrix,
                               val rowBias: ParamVector,
@@ -203,7 +222,7 @@ class LogisticDotTermWithBias(rowFactors: DoubleDenseMatrix,
     val score = dot(c)
     val escore = exp(score)
     val prob = escore / (escore + 1.0)
-    val direction = c.value.double - prob
+    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     val g = weight() * direction
     grads(rowBias) = (c.row -> Array(g))
     grads(colBias) = (c.col -> Array(g))
