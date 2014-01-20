@@ -69,13 +69,13 @@ class LearningTest {
 
   def terms(m: ObservedMatrix) = {
     val params = genParams(1)
-    val term = new L2DotTerm(params, "r", "c", 1.0, m)
+    val term = new DotTerm(params, "r", "c", 1.0, m) with L2
     val l2r = new L2Regularization(params, "r", m.trainCells.size)
     val l2c = new L2Regularization(params, "c", m.trainCells.size)
     (term, l2r, l2c)
   }
 
-  def train(trainer: Trainer, term: L2DotTerm, l2r: L2Regularization, l2c: L2Regularization, m: ObservedMatrix) {
+  def train(trainer: Trainer, term: DotTerm, l2r: L2Regularization, l2c: L2Regularization, m: ObservedMatrix) {
     //println("Init Training value : " + term.avgTrainingValue(m))
     //println("Init Test value     : " + term.avgTestValue(m))
     for (i <- 0 until 500) {
