@@ -37,11 +37,11 @@ abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
 }
 
 abstract class DotTermWithBias(rowFactors: DoubleDenseMatrix,
-                      colFactors: DoubleDenseMatrix,
-                      val rowBias: ParamVector,
-                      val colBias: ParamVector,
-                      weight: ParamDouble,
-                      target: ObservedMatrix) extends DotTerm(rowFactors, colFactors, weight, target) {
+                               colFactors: DoubleDenseMatrix,
+                               val rowBias: ParamVector,
+                               val colBias: ParamVector,
+                               weight: ParamDouble,
+                               target: ObservedMatrix) extends DotTerm(rowFactors, colFactors, weight, target) {
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
 
@@ -159,6 +159,23 @@ trait LogisticWithBias extends DotTermWithBias with Logistic {
     grads(colBias) = (c.col -> Array(g))
     grads
   }
+}
+
+trait BinaryError extends Logistic {
+  def threshold: Double = 0.5
+
+  override def value(c: Cell): Double = {
+    val score = dot(c)
+    val escore = exp(score)
+    val prob = escore / (escore + 1.0)
+    if ((prob > threshold && c.value.double > 0.5) || (prob <= threshold && c.value.double <= 0.5))
+      0.0
+    else
+      1.0
+  }
+
+  override def gradient(c: Cell): Gradients =
+    throw new Error("Gradient not defined, use only for evaluation")
 }
 
 /**
