@@ -3,6 +3,10 @@ package org.sameersingh.mf
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import java.io._
+import java.util.zip.GZIPOutputStream
+import scala.Some
+import scala.io.Source
 
 trait Parameters {
   type StochasticGradientType
@@ -109,9 +113,10 @@ class DoubleDenseMatrix(name: String, numCols: Int, init: () => Double = () => 0
     for (k <- 0 until numCols)
       arr(k) = arr(k) - stepSize * sgd._2(k)
   }
+
 }
 
-class ParamVector(name: String) extends DoubleDenseMatrix(name, 1) {
+class ParamVector(name: String, init: () => Double = () => 0.0) extends DoubleDenseMatrix(name, 1, init) {
   def apply(rid: ID): Double = apply(rid, 0)
 
   def update(rid: ID, d: Double) = r(rid)(0) = d
@@ -134,6 +139,10 @@ class ParameterSet extends Map[String, Parameters] {
   }
 
   def update(f: DoubleDenseMatrix, attr: String, d: Double) = _map(factorKey(f.name, attr)) = new ParamDouble(factorKey(f.name, attr), d)
+
+  def update(f: DoubleDenseMatrix, attr: String, v: DoubleDenseMatrix): Unit = _map(factorKey(f.name, attr)) = v
+
+  def update(f: DoubleDenseMatrix, attr: String, init: () => Double): Unit = update(f, attr, new ParamVector(factorKey(f.name, attr), init))
 
   private def factorKey(fname: String, attr: String): String = "FACT:%s_%s" format(fname, attr)
 
@@ -181,10 +190,50 @@ class Gradients {
   def update[P <: Parameters, G <: P#StochasticGradientType](p: P, g: G) =
     _map.getOrElseUpdate(p.name, new ArrayBuffer) += g
 
-  def clear[P <: Parameters](p: P) { _map.remove(p.name) }
+  def clear[P <: Parameters](p: P) {
+    _map.remove(p.name)
+  }
 
   def +=(gs: Gradients): Gradients = {
     gs._map.foreach(p_gs => _map.getOrElseUpdate(p_gs._1, new ArrayBuffer) ++= p_gs._2)
     this
+  }
+}
+
+object DoubleDenseMatrix {
+  def save(m: DoubleDenseMatrix, filename: String, gzip: Boolean): Unit = save(m, if (gzip) new GZIPOutputStream(new FileOutputStream(filename)) else new FileOutputStream(filename))
+
+  def save(m: DoubleDenseMatrix, os: OutputStream): Unit = {
+    val writer = new PrintWriter(new BufferedOutputStream(os))
+    writer.println(m.name + "\t" + m.numCols)
+    for (r <- m.rids) {
+      writer.print(r.id)
+      for (c <- m.r(r)) {
+        writer.print("\t" + c)
+      }
+      writer.println()
+    }
+    writer.flush()
+    writer.close()
+  }
+
+  def load(is: InputStream, strToId: (String) => ID): DoubleDenseMatrix = {
+    val source = Source.fromInputStream(is)
+    var ddm: DoubleDenseMatrix = null
+    for (line <- source.getLines()) {
+      val split = line.split("\t")
+      if (ddm == null) {
+        assert(split.length == 2)
+        ddm = new DoubleDenseMatrix(split(0), split(1).toInt)
+      } else {
+        assert(split.length == ddm.numCols + 1)
+        val r = strToId(split(0))
+        for(k <- 0 until ddm.numCols) {
+          ddm(r, k) = split(k + 1).toDouble
+        }
+      }
+    }
+    source.close()
+    ddm
   }
 }
