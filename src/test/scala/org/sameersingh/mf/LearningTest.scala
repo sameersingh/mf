@@ -9,7 +9,7 @@ import scala.util.Random
 @Test
 class LearningTest {
 
-  val random = new Random(0)
+  implicit val random = new Random(0)
 
   def smallSingleMatrix(numComps: Int, noiseVar: Double = 0.0) = {
     val numRows = 10
