@@ -40,4 +40,6 @@ class Cache {
 
 case class CachedID(id: String, domain: String)(implicit cache: Cache) extends ID {
   val idx: Int = cache(id, domain)
+
+  override def toString: String = id
 }
