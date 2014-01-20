@@ -1,15 +1,15 @@
 package org.sameersingh.mf
 
 trait Cell {
-  def row: ID
+  val row: ID
 
-  def col: ID
+  val col: ID
 
-  def value: Val
+  val value: Val
 
   def isTrain: Boolean
 
-  def inMatrix: ObservedMatrix
+  val inMatrix: ObservedMatrix
 
   override def toString = "(%s, %s) = %f" format(row, col, value.double)
 }
@@ -22,6 +22,10 @@ trait ObservedMatrix {
   def trainCells = cells.filter(_.isTrain)
 
   def testCells = cells.filterNot(_.isTrain)
+
+  def rowIDs = cells.map(_.row).toSet
+
+  def colIDs = cells.map(_.row).toSet
 
   override def toString = "%s\nTrain(%d):\t%s\nTest(%d):\t%s" format(name, trainCells.size, trainCells.take(5).mkString("\t"), testCells.size, testCells.take(5).mkString("\t"))
 }

@@ -19,7 +19,15 @@ class MatrixLoader {
     val matrix = new ObservedMatrix {
       val cells: Seq[Cell] = cellArray
 
-      def name: String = matrixName
+      lazy val trainCells: Seq[Cell] = super.trainCells
+
+      lazy val testCells: Seq[Cell] = super.testCells
+
+      lazy val rowIDs: Set[ID] = super.rowIDs
+
+      lazy val colIDs: Set[ID] = super.colIDs
+
+      val name: String = matrixName
     }
     for(line <- source.getLines()) {
       val split = line.split('\t')
@@ -30,13 +38,13 @@ class MatrixLoader {
         cellArray += new Cell {
           val isTrain: Boolean = random.nextDouble < trainingProp
 
-          def value: Val = DoubleValue(1.0)
+          val value: Val = DoubleValue(1.0)
 
-          def col: ID = colId
+          val col: ID = colId
 
-          def row: ID = rowId
+          val row: ID = rowId
 
-          def inMatrix: ObservedMatrix = matrix
+          val inMatrix: ObservedMatrix = matrix
         }
       }
     }
