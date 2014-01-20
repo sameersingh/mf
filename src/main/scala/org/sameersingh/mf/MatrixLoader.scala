@@ -23,9 +23,9 @@ class MatrixLoader {
 
       override lazy val testCells: Seq[Cell] = super.testCells
 
-      override lazy val rowIDs: Set[ID] = super.rowIDs
+      override lazy val rowIDs = super.rowIDs
 
-      override lazy val colIDs: Set[ID] = super.colIDs
+      override lazy val colIDs = super.colIDs
 
       val name: String = matrixName
     }

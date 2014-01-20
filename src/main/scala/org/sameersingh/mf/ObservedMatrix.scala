@@ -23,9 +23,9 @@ trait ObservedMatrix {
 
   def testCells = cells.filterNot(_.isTrain)
 
-  def rowIDs = cells.map(_.row).toSet
+  def rowIDs = cells.map(_.row).toSet.toSeq
 
-  def colIDs = cells.map(_.row).toSet
+  def colIDs = cells.map(_.row).toSet.toSeq
 
   override def toString = "%s\nTrain(%d):\t%s\nTest(%d):\t%s" format(name, trainCells.size, trainCells.take(5).mkString("\t"), testCells.size, testCells.take(5).mkString("\t"))
 }
