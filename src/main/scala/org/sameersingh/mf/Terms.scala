@@ -1,5 +1,7 @@
 package org.sameersingh.mf
 
+import scala.math._
+
 trait Term {
   def params: Seq[Parameters]
 
@@ -17,7 +19,7 @@ class DotTerm(val rowFactors: DoubleDenseMatrix,
               val colFactors: DoubleDenseMatrix,
               val weight: ParamDouble,
               val target: ObservedMatrix)
-      extends Term {
+  extends Term {
 
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params(target, "weight", w), target)
@@ -72,7 +74,7 @@ class DotTermWithBias(rowFactors: DoubleDenseMatrix,
 
   override def params: Seq[Parameters] = _params
 
-  override def error(c: Cell): Double = super.error(c) - rowBias(c.row) - colBias(c.col)
+  override def dot(c: Cell): Double = super.dot(c) + rowBias(c.row) + colBias(c.col)
 
   override def gradient(c: Cell): Gradients = {
     val grads = super.gradient(c)
@@ -84,7 +86,7 @@ class DotTermWithBias(rowFactors: DoubleDenseMatrix,
 }
 
 class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, val numCells: Int = 1)
-      extends Term {
+  extends Term {
   def this(params: ParameterSet, f: String, n: Int) = this(params(f), params.l2RegCoeff(f), n)
 
   val params: Seq[Parameters] = Seq(factors)
@@ -121,6 +123,90 @@ class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, 
       }
       grads(factors) = (c.col -> gs)
     }
+    grads
+  }
+}
+
+class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
+                      val colFactors: DoubleDenseMatrix,
+                      val weight: ParamDouble,
+                      val target: ObservedMatrix)
+  extends Term {
+
+  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
+    this(params(u), params(v), params(target, "weight", w), target)
+
+  assert(rowFactors.numCols == colFactors.numCols, "Number of columns for LogisticDotTerms should match %s->%d, %s->%d" format(rowFactors.name, rowFactors.numCols, colFactors.name, colFactors.numCols))
+
+  private val _params: Seq[Parameters] = Seq(rowFactors, colFactors)
+
+  def params = _params
+
+  def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
+
+  // log prob of c.value
+  def error(c: Cell) = {
+    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
+    val score = dot(c)
+    val logZ = log(exp(score) + 1.0)
+    val lprob = score - logZ
+    val liprob = -logZ // log(1) - logZ
+    c.value.double * lprob + (1.0 - c.value.double) * liprob
+  }
+
+  // for stochastic estimation, the value for a cell
+  def value(c: Cell): Double = if (c.inMatrix == target) {
+    error(c)
+  } else 0.0
+
+  def gradient(c: Cell): Gradients = {
+    val grads = new Gradients
+    val row = rowFactors.r(c.row)
+    val col = colFactors.r(c.col)
+    val rowGrads = Array.fill(rowFactors.numCols)(0.0)
+    val colGrads = Array.fill(colFactors.numCols)(0.0)
+    val score = dot(c)
+    val escore = exp(score)
+    val prob = escore / (escore + 1.0)
+    val direction = c.value.double - prob
+    // do the rows first
+    for (k <- 0 until rowFactors.numCols) {
+      rowGrads(k) = weight() * direction * col(k)
+    }
+    grads(rowFactors) = (c.row -> rowGrads)
+    // then do the cols
+    for (k <- 0 until colFactors.numCols) {
+      colGrads(k) = weight() * direction * row(k)
+    }
+    grads(colFactors) = (c.col -> colGrads)
+    grads
+  }
+}
+
+class LogisticDotTermWithBias(rowFactors: DoubleDenseMatrix,
+                              colFactors: DoubleDenseMatrix,
+                              val rowBias: ParamVector,
+                              val colBias: ParamVector,
+                              weight: ParamDouble,
+                              target: ObservedMatrix) extends LogisticDotTerm(rowFactors, colFactors, weight, target) {
+  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
+    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
+
+  private val _params: Seq[Parameters] = super.params ++ Seq(rowBias, colBias)
+
+  override def params: Seq[Parameters] = _params
+
+  override def error(c: Cell): Double = super.error(c) - rowBias(c.row) - colBias(c.col)
+
+  override def gradient(c: Cell): Gradients = {
+    val grads = super.gradient(c)
+    val score = dot(c)
+    val escore = exp(score)
+    val prob = escore / (escore + 1.0)
+    val direction = c.value.double - prob
+    val g = weight() * direction
+    grads(rowBias) = (c.row -> Array(g))
+    grads(colBias) = (c.col -> Array(g))
     grads
   }
 }
