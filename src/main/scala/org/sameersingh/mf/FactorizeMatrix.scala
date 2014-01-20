@@ -18,7 +18,7 @@ object FactorizeMatrix extends App {
   params += new DoubleDenseMatrix("c", numComps, () => random.nextGaussian() / 100.0)
   params(params[DoubleDenseMatrix]("r"), "L2RegCoeff") = 0.1
   params(params[DoubleDenseMatrix]("c"), "L2RegCoeff") = 0.1
-  val term = new LogisticDotTermWithBias(params, "r", "c", 1.0, m)
+  val term = new DotTermWithBias(params, "r", "c", 1.0, m) with LogisticWithBias
   val l2r = new L2Regularization(params, "r", m.trainCells.size)
   val l2c = new L2Regularization(params, "c", m.trainCells.size)
   val terms = Seq(term, l2r, l2c)

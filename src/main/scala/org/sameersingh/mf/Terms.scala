@@ -19,14 +19,10 @@ trait Term {
   def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.testCells.size.toDouble
 }
 
-/**
- * A term that L2 distance between the true value and the dot product of the row and column factors for the given matrix
- */
-class L2DotTerm(val rowFactors: DoubleDenseMatrix,
-              val colFactors: DoubleDenseMatrix,
-              val weight: ParamDouble,
-              val target: ObservedMatrix)
-  extends Term {
+abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
+                       val colFactors: DoubleDenseMatrix,
+                       val weight: ParamDouble,
+                       val target: ObservedMatrix) extends Term {
 
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params(target, "weight", w), target)
@@ -38,6 +34,29 @@ class L2DotTerm(val rowFactors: DoubleDenseMatrix,
   def params = _params
 
   def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
+}
+
+abstract class DotTermWithBias(rowFactors: DoubleDenseMatrix,
+                      colFactors: DoubleDenseMatrix,
+                      val rowBias: ParamVector,
+                      val colBias: ParamVector,
+                      weight: ParamDouble,
+                      target: ObservedMatrix) extends DotTerm(rowFactors, colFactors, weight, target) {
+  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
+    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
+
+  private val _params: Seq[Parameters] = super.params ++ Seq(rowBias, colBias)
+
+  override def params: Seq[Parameters] = _params
+
+  override def dot(c: Cell): Double = super.dot(c) + rowBias(c.row) + colBias(c.col)
+}
+
+
+/**
+ * A term that L2 distance between the true value and the dot product of the row and column factors for the given matrix
+ */
+trait L2 extends DotTerm {
 
   def error(c: Cell) = c.value.double - dot(c)
 
@@ -71,24 +90,71 @@ class L2DotTerm(val rowFactors: DoubleDenseMatrix,
 /**
  * Introduces biases for rows and columns, but otherwise identical to L2DotTerm
  */
-class L2DotTermWithBias(rowFactors: DoubleDenseMatrix,
-                      colFactors: DoubleDenseMatrix,
-                      val rowBias: ParamVector,
-                      val colBias: ParamVector,
-                      weight: ParamDouble,
-                      target: ObservedMatrix) extends L2DotTerm(rowFactors, colFactors, weight, target) {
-  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
-    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
-
-  private val _params: Seq[Parameters] = super.params ++ Seq(rowBias, colBias)
-
-  override def params: Seq[Parameters] = _params
-
-  override def dot(c: Cell): Double = super.dot(c) + rowBias(c.row) + colBias(c.col)
-
+trait L2WithBias extends DotTermWithBias with L2 {
   override def gradient(c: Cell): Gradients = {
     val grads = super.gradient(c)
     val g = -2.0 * weight() * error(c)
+    grads(rowBias) = (c.row -> Array(g))
+    grads(colBias) = (c.col -> Array(g))
+    grads
+  }
+}
+
+/**
+ * Logistic loss suitable for binary matrices. The term is optimized by minimizing negative log-likelihood.
+ */
+trait Logistic extends DotTerm {
+
+  // log prob of c.value
+  def error(c: Cell) = {
+    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
+    val score = dot(c)
+    val logZ = log(exp(score) + 1.0)
+    val lprob = score - logZ
+    val liprob = -logZ // log(1) - logZ
+    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
+  }
+
+  // for stochastic estimation, the value for a cell
+  def value(c: Cell): Double = if (c.inMatrix == target) {
+    error(c)
+  } else 0.0
+
+  def gradient(c: Cell): Gradients = {
+    val grads = new Gradients
+    val row = rowFactors.r(c.row)
+    val col = colFactors.r(c.col)
+    val rowGrads = Array.fill(rowFactors.numCols)(0.0)
+    val colGrads = Array.fill(colFactors.numCols)(0.0)
+    val score = dot(c)
+    val escore = exp(score)
+    val prob = escore / (escore + 1.0)
+    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
+    // do the rows first
+    for (k <- 0 until rowFactors.numCols) {
+      rowGrads(k) = weight() * direction * col(k)
+    }
+    grads(rowFactors) = (c.row -> rowGrads)
+    // then do the cols
+    for (k <- 0 until colFactors.numCols) {
+      colGrads(k) = weight() * direction * row(k)
+    }
+    grads(colFactors) = (c.col -> colGrads)
+    grads
+  }
+}
+
+/**
+ * Include bias in the dot term, but otherwise same as LogisticDotTerm
+ */
+trait LogisticWithBias extends DotTermWithBias with Logistic {
+  override def gradient(c: Cell): Gradients = {
+    val grads = super.gradient(c)
+    val score = dot(c)
+    val escore = exp(score)
+    val prob = escore / (escore + 1.0)
+    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
+    val g = weight() * direction
     grads(rowBias) = (c.row -> Array(g))
     grads(colBias) = (c.col -> Array(g))
     grads
@@ -136,96 +202,6 @@ class L2Regularization(val factors: DoubleDenseMatrix, val weight: ParamDouble, 
       }
       grads(factors) = (c.col -> gs)
     }
-    grads
-  }
-}
-
-/**
- * Logistic loss suitable for binary matrices. The term is optimized by minimizing negative log-likelihood.
- */
-class LogisticDotTerm(val rowFactors: DoubleDenseMatrix,
-                      val colFactors: DoubleDenseMatrix,
-                      val weight: ParamDouble,
-                      val target: ObservedMatrix)
-  extends Term {
-
-  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
-    this(params(u), params(v), params(target, "weight", w), target)
-
-  assert(rowFactors.numCols == colFactors.numCols, "Number of columns for LogisticDotTerms should match %s->%d, %s->%d" format(rowFactors.name, rowFactors.numCols, colFactors.name, colFactors.numCols))
-
-  private val _params: Seq[Parameters] = Seq(rowFactors, colFactors)
-
-  def params = _params
-
-  def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
-
-  // log prob of c.value
-  def error(c: Cell) = {
-    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
-    val score = dot(c)
-    val logZ = log(exp(score) + 1.0)
-    val lprob = score - logZ
-    val liprob = -logZ // log(1) - logZ
-    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
-  }
-
-  // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double = if (c.inMatrix == target) {
-    error(c)
-  } else 0.0
-
-  def gradient(c: Cell): Gradients = {
-    val grads = new Gradients
-    val row = rowFactors.r(c.row)
-    val col = colFactors.r(c.col)
-    val rowGrads = Array.fill(rowFactors.numCols)(0.0)
-    val colGrads = Array.fill(colFactors.numCols)(0.0)
-    val score = dot(c)
-    val escore = exp(score)
-    val prob = escore / (escore + 1.0)
-    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
-    // do the rows first
-    for (k <- 0 until rowFactors.numCols) {
-      rowGrads(k) = weight() * direction * col(k)
-    }
-    grads(rowFactors) = (c.row -> rowGrads)
-    // then do the cols
-    for (k <- 0 until colFactors.numCols) {
-      colGrads(k) = weight() * direction * row(k)
-    }
-    grads(colFactors) = (c.col -> colGrads)
-    grads
-  }
-}
-
-/**
- * Include bias in the dot term, but otherwise same as LogisticDotTerm
- */
-class LogisticDotTermWithBias(rowFactors: DoubleDenseMatrix,
-                              colFactors: DoubleDenseMatrix,
-                              val rowBias: ParamVector,
-                              val colBias: ParamVector,
-                              weight: ParamDouble,
-                              target: ObservedMatrix) extends LogisticDotTerm(rowFactors, colFactors, weight, target) {
-  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
-    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
-
-  private val _params: Seq[Parameters] = super.params ++ Seq(rowBias, colBias)
-
-  override def params: Seq[Parameters] = _params
-
-  override def error(c: Cell): Double = super.error(c) - rowBias(c.row) - colBias(c.col)
-
-  override def gradient(c: Cell): Gradients = {
-    val grads = super.gradient(c)
-    val score = dot(c)
-    val escore = exp(score)
-    val prob = escore / (escore + 1.0)
-    val direction = -(c.value.double - prob) // gradient of negative log-likelihood
-    val g = weight() * direction
-    grads(rowBias) = (c.row -> Array(g))
-    grads(colBias) = (c.col -> Array(g))
     grads
   }
 }
