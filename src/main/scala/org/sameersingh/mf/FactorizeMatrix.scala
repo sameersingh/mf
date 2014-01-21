@@ -13,8 +13,14 @@ object FactorizeMatrix extends App {
   val filename = "/Users/sameer/Work/data/mf/tac12.th3.profiles.gz"
   val rOutputFilename = "/Users/sameer/Work/data/mf/mf_output/entity_profiles.gz"
   val cOutputFilename = "/Users/sameer/Work/data/mf/mf_output/verb_profiles.gz"
+  val pruneRows = 1
+  val pruneCols = 1
   TimeUtil.init
-  val m = MatrixLoader.loadFile(filename, "M", 0.8, true)
+  val original = MatrixLoader.loadFile(filename, "M", 0.8, true)
+  TimeUtil.snapshot(original.toString)
+  val m = Matrix.prune(original, pruneRows, pruneCols)
+  val numZeroCells = (m.testCells.size / 10)
+  val zeroCells = (0 until numZeroCells).map(i => Matrix.randomSampledCell(m, DoubleValue(0.0)))
   TimeUtil.snapshot(m.toString)
 
   val numComps = 100
@@ -46,10 +52,13 @@ object FactorizeMatrix extends App {
     println("-----------------------")
     TimeUtil.snapshot("Training LL    : " + nll.avgTrainingValue(m))
     TimeUtil.snapshot("Test LL        : " + nll.avgTestValue(m))
-    TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
-    TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
+    TimeUtil.snapshot("Test LL (0)    : " + nll.avgValue(zeroCells))
+    //TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
+    //TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
+    //TimeUtil.snapshot("Test L2 (0)    : " + l2Error.avgValue(zeroCells))
     TimeUtil.snapshot("Training Err   : " + binError.avgTrainingValue(m))
     TimeUtil.snapshot("Test Err       : " + binError.avgTestValue(m))
+    TimeUtil.snapshot("Test Err (0)   : " + binError.avgValue(zeroCells))
     TimeUtil.snapshot("L2 R value     : " + l2r.value / l2r.weight())
     TimeUtil.snapshot("L2 C value     : " + l2c.value / l2c.weight())
     //*/
@@ -70,10 +79,13 @@ object FactorizeMatrix extends App {
   println("-----------------------")
   TimeUtil.snapshot("Training LL    : " + nll.avgTrainingValue(m))
   TimeUtil.snapshot("Test LL        : " + nll.avgTestValue(m))
-  TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
-  TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
+  TimeUtil.snapshot("Test LL (0)    : " + nll.avgValue(zeroCells))
+  //TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
+  //TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
+  //TimeUtil.snapshot("Test L2 (0)    : " + l2Error.avgValue(zeroCells))
   TimeUtil.snapshot("Training Err   : " + binError.avgTrainingValue(m))
   TimeUtil.snapshot("Test Err       : " + binError.avgTestValue(m))
+  TimeUtil.snapshot("Test Err (0)   : " + binError.avgValue(zeroCells))
   TimeUtil.snapshot("L2 R value     : " + l2r.value / l2r.weight())
   TimeUtil.snapshot("L2 C value     : " + l2c.value / l2c.weight())
 }
