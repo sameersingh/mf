@@ -28,7 +28,7 @@ class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implici
   def round(initStepSize: Double) {
     var stepSize = initStepSize
     for (t <- targets) {
-      for (c <- trainCells(t).shuffle) {
+      for (c <- trainCells(t)) {
         update(c, stepSize)
       }
     }
@@ -60,23 +60,7 @@ trait Sampling extends Trainer {
 
   def defaultValue: Val = DoubleValue(0.0)
 
-  def randomSampledCell(t: ObservedMatrix): Cell = {
-    val r = t.rowIDs.toSeq(random.nextInt(t.rowIDs.size))
-    val c = t.colIDs.toSeq(random.nextInt(t.colIDs.size))
-    new Cell {
-      val row: ID = r
-
-      val col: ID = c
-
-      val value: Val = defaultValue
-
-      val isTrain: Boolean = true
-
-      val inMatrix: ObservedMatrix = t
-    }
-  }
-
-  def randomSampledCells(t: ObservedMatrix, count: Int): Seq[Cell] = (0 until numSampledCells(t)).map(i => randomSampledCell(t))
+  def randomSampledCells(t: ObservedMatrix, count: Int): Seq[Cell] = (0 until count).map(i => Matrix.randomSampledCell(t, defaultValue)(random))
 
   override def trainCells(t: ObservedMatrix): Seq[Cell] = {
     super.trainCells(t) ++ randomSampledCells(t, numSampledCells(t))
