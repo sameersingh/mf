@@ -14,9 +14,11 @@ trait Term {
 
   def gradient(c: Cell): Gradients
 
-  def avgTrainingValue(m: ObservedMatrix): Double = m.trainCells.foldLeft(0.0)(_ + value(_)) / m.trainCells.size.toDouble
+  def avgTrainingValue(m: ObservedMatrix): Double = avgValue(m.trainCells)
 
-  def avgTestValue(m: ObservedMatrix): Double = m.testCells.foldLeft(0.0)(_ + value(_)) / m.testCells.size.toDouble
+  def avgTestValue(m: ObservedMatrix): Double = avgValue(m.testCells)
+
+  def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
 }
 
 abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
