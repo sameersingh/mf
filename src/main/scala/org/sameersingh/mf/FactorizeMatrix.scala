@@ -10,9 +10,10 @@ import org.sameersingh.utils.timing.TimeUtil
 object FactorizeMatrix extends App {
   implicit val random = new Random(0)
   implicit val cache = new Cache
-  val filename = "/Users/sameer/Work/data/mf/tac12.th3.profiles.gz"
-  val rOutputFilename = "/Users/sameer/Work/data/mf/mf_output/entity_profiles.gz"
-  val cOutputFilename = "/Users/sameer/Work/data/mf/mf_output/verb_profiles.gz"
+  val baseDir = "/Users/sameer/Work/data/mf/"
+  val filename = baseDir + "tac12.th3.profiles.gz"
+  val rOutputFilename = baseDir + "mf_output/entity_profiles.gz"
+  val cOutputFilename = baseDir + "mf_output/verb_profiles.gz"
   val pruneRows = 1
   val pruneCols = 1
   TimeUtil.init
