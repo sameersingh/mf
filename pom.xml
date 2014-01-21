@@ -142,6 +142,15 @@
                 <configuration>
                     <recompileMode>incremental</recompileMode>
                     <useZincServer>true</useZincServer>
+                    <launchers>
+                        <launcher>
+                            <id>factorize</id>
+                            <mainClass>org.sameersingh.mf.FactorizeMatrix</mainClass>
+                            <jvmArgs>
+                                <jvmArg>-Xmx6g</jvmArg>
+                            </jvmArgs>
+                        </launcher>
+                    </launchers>
                 </configuration>
             </plugin>
             <plugin>
