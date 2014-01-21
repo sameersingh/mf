@@ -28,7 +28,7 @@ class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implici
   def round(initStepSize: Double) {
     var stepSize = initStepSize
     for (t <- targets) {
-      for (c <- trainCells(t)) {
+      for (c <- trainCells(t).shuffle) {
         update(c, stepSize)
       }
     }
