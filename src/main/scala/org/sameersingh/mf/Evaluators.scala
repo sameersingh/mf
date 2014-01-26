@@ -1,12 +1,19 @@
 package org.sameersingh.mf
 
-import cc.factorie.util.coref.CorefEvaluator.Metric
+import math._
+import scala.collection.mutable
 
 /**
  * @author sameer
  */
 trait Evaluator {
-  def eval(cells: Seq[Cell], prefix: String): Seq[(String, Double)]
+  def predictValue: PredictValue
+
+  def evaluate(predTruths: Seq[(Double, Double)], prefix: String = ""): Seq[(String, Double)] = eval(predTruths.map(_._1), predTruths.map(_._2), prefix)
+
+  def eval(pred: Seq[Double], truth: Seq[Double], prefix: String): Seq[(String, Double)]
+
+  def eval(cells: Seq[Cell], prefix: String): Seq[(String, Double)] = eval(cells.map(c => predictValue.pred(c)), cells.map(_.value.double), prefix)
 
   def evalTrain(m: ObservedMatrix) = eval(m.trainCells, "Train ")
 
@@ -14,24 +21,26 @@ trait Evaluator {
 }
 
 trait Error extends Evaluator {
-  def predictValue: PredictValue
-
   // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double
+  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
+    value(predictValue.pred(c), c.value.double)
+  } else 0.0
+
+  def value(pred: Double, truth: Double): Double
 
   def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
 
+  def avgValue(pred: Seq[Double], truth: Seq[Double]): Double = pred.zip(truth).foldLeft(0.0)((s, p) => s + value(p._1, p._2)) / pred.size.toDouble
+
   def name: String
 
-  def eval(cells: Seq[Cell], prefix: String) = Seq(prefix + name -> avgValue(cells))
+  def eval(pred: Seq[Double], truth: Seq[Double], prefix: String) = Seq(prefix + name -> avgValue(pred, truth))
 }
 
 trait L2 extends Error {
   val name = "L2"
 
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    StrictMath.pow(c.value.double - predictValue.pred(c), 2.0)
-  } else 0.0
+  def value(pred: Double, truth: Double): Double = StrictMath.pow(truth - pred, 2.0)
 }
 
 trait Hamming extends Error {
@@ -41,13 +50,13 @@ trait Hamming extends Error {
 
   def threshold = 0.5
 
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    val prob = predictValue.prob(c)
-    if ((prob > threshold && c.value.double > 0.5) || (prob <= threshold && c.value.double <= 0.5))
+  def value(pred: Double, truth: Double): Double = {
+    val prob = pred
+    if ((prob > threshold && truth > 0.5) || (prob <= threshold && truth <= 0.5))
       0.0
     else
       100.0
-  } else 0.0
+  }
 }
 
 trait NLL extends Error {
@@ -55,12 +64,13 @@ trait NLL extends Error {
 
   def predictValue: PredictProb
 
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    // log prob of c.value
-    val (lprob, liprob) = predictValue.logProbs(c)
-    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
-    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
-  } else 0.0
+  // log prob of c.value
+  def value(pred: Double, truth: Double): Double = {
+    val lprob = log(pred)
+    val liprob = log(1.0 - pred)
+    assert(truth >= 0.0 || truth <= 1.0)
+    -(truth * lprob + (1.0 - truth) * liprob) // negative log likelihood
+  }
 }
 
 trait PerCellF1 extends Evaluator {
@@ -68,13 +78,12 @@ trait PerCellF1 extends Evaluator {
 
   def threshold = 0.5
 
-  def eval(c: Cell) = if (c.inMatrix == predictValue.target) {
-    val prob = predictValue.prob(c)
-    if (prob > threshold) {
-      if (c.value.double > 0.5) tp += 1.0
+  def eval(pred: Double, truth: Double) = {
+    if (pred > threshold) {
+      if (truth > 0.5) tp += 1.0
       else fp += 1.0
     } else {
-      if (c.value.double > 0.5) fn += 1.0
+      if (truth > 0.5) fn += 1.0
     }
   }
 
@@ -119,24 +128,50 @@ trait PerCellF1 extends Evaluator {
     fn = 0.0
   }
 
-  def eval(cells: Seq[Cell], prefix: String) = {
+  def eval(pred: Seq[Double], truth: Seq[Double], prefix: String): Seq[(String, Double)] = {
     reset
-    for (c <- cells) eval(c)
+    for (p <- pred.zip(truth)) eval(p._1, p._2)
     Seq("Prec" -> precision, "Recall" -> recall, "F1" -> f1).map(p => (prefix + p._1, p._2 * 100.0))
   }
+
 }
 
 class Evaluators(val evals: Seq[Evaluator]) {
-  def string(m: ObservedMatrix, additionalTestCells: Seq[Cell]) = {
+
+  val dotValues = evals.groupBy(_.predictValue)
+
+  def eval(m: ObservedMatrix, additionalTestCells: Seq[Cell]): Map[String, Seq[(String, Double)]] = {
+    val result = new mutable.HashMap[String, Seq[(String, Double)]]
+    // prepare data
     val combinedTest = m.testCells ++ additionalTestCells
-    (for (e <- evals) yield {
-      val train = e.evalTrain(m)
-      val test = e.evalTest(m)
-      val additional = e.eval(additionalTestCells, "Additional ")
-      val combined = e.eval(combinedTest, "Combined Test ")
-      for (r <- train ++ test ++ additional ++ combined) yield (r._1 + "\t:\t" + r._2)
-    }).flatten.mkString("\n")
+    // go through the dot values
+    for (dv <- dotValues.keys; if (dv.target == m)) {
+      val additionalCells = additionalTestCells.filter(_.inMatrix == m)
+      // predict values for each cell only once
+      val trainPreds = "Train " -> m.trainCells.map(c => (dv.pred(c), c.value.double))
+      val testPred = "Test " -> m.testCells.map(c => (dv.pred(c), c.value.double))
+      val additionalPreds = "Additional " -> additionalCells.map(c => (dv.pred(c), c.value.double))
+      val combinedPreds = "Combined " -> (testPred._2 ++ additionalPreds._2)
+      val evalPreds = Seq(trainPreds, testPred, additionalPreds, combinedPreds)
+      for (evalPred <- evalPreds) {
+        result(evalPred._1) = evals.map(e => e.evaluate(evalPred._2)).flatten
+      }
+    }
+    result.toMap
   }
+
+  def string(evalResults: Map[String, Seq[(String, Double)]]): String = {
+    val sb = new StringBuffer
+    sb append ("%14s %s\n" format("Data type", evalResults.head._2.map(_._1).map(s => "%13s" format (s)).mkString(" ")))
+    sb append ("%s %s\n" format(("%14s" format("")).replace(' ', '-'), evalResults.head._2.map(_._1).map(s => "%13s" format ("")).map(_.replace(' ', '-')).mkString(" ")))
+    for ((data, results) <- evalResults) {
+      sb append ("%15s%s\n" format(data, results.map(_._2).map(s => "%13.7f" format (s)).mkString(" ")))
+    }
+    sb append ("%s %s\n" format(("%14s" format("")).replace(' ', '-'), evalResults.head._2.map(_._1).map(s => "%13s" format ("")).map(_.replace(' ', '-')).mkString(" ")))
+    sb.toString
+  }
+
+  def string(m: ObservedMatrix, additionalTestCells: Seq[Cell]): String = string(eval(m, additionalTestCells))
 }
 
 object Evaluators {
