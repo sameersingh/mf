@@ -6,7 +6,7 @@ import cc.factorie.util.coref.CorefEvaluator.Metric
  * @author sameer
  */
 trait Evaluator {
-  def eval(cells: Seq[Cell], prefix: String): Map[String, Double]
+  def eval(cells: Seq[Cell], prefix: String): Seq[(String, Double)]
 
   def evalTrain(m: ObservedMatrix) = eval(m.trainCells, "Train ")
 
@@ -23,7 +23,7 @@ trait Error extends Evaluator {
 
   def name: String
 
-  def eval(cells: Seq[Cell], prefix: String): Map[String, Double] = Map(prefix + name -> avgValue(cells))
+  def eval(cells: Seq[Cell], prefix: String) = Seq(prefix + name -> avgValue(cells))
 }
 
 trait L2 extends Error {
@@ -122,7 +122,7 @@ trait PerCellF1 extends Evaluator {
   def eval(cells: Seq[Cell], prefix: String) = {
     reset
     for (c <- cells) eval(c)
-    Map("Prec" -> precision, "Recall" -> recall, "F1" -> f1).map(p => (prefix + p._1, p._2 * 100.0))
+    Seq("Prec" -> precision, "Recall" -> recall, "F1" -> f1).map(p => (prefix + p._1, p._2 * 100.0))
   }
 }
 
