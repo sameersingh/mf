@@ -68,64 +68,6 @@ trait LogisticDot extends DotValue with PredictProb {
   }
 }
 
-trait Evaluator {
-  def eval(cells: Seq[Cell], prefix: String): Map[String, Double]
-
-  def evalTrain(m: ObservedMatrix) = eval(m.trainCells, "Train ")
-
-  def evalTest(m: ObservedMatrix) = eval(m.testCells, "Test ")
-}
-
-trait Error extends Evaluator {
-  def predictValue: PredictValue
-
-  // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double
-
-  def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
-
-  def name: String
-
-  def eval(cells: Seq[Cell], prefix: String): Map[String, Double] = Map(prefix + name -> avgValue(cells))
-}
-
-trait L2 extends Error {
-  val name = "L2"
-
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    StrictMath.pow(c.value.double - predictValue.pred(c), 2.0)
-  } else 0.0
-}
-
-trait Hamming extends Error {
-  val name = "Hamming"
-
-  def predictValue: PredictProb
-
-  def threshold = 0.5
-
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    val prob = predictValue.prob(c)
-    if ((prob > threshold && c.value.double > 0.5) || (prob <= threshold && c.value.double <= 0.5))
-      0.0
-    else
-      1.0
-  } else 0.0
-}
-
-trait NLL extends Error {
-  val name = "NLL"
-
-  def predictValue: PredictProb
-
-  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
-    // log prob of c.value
-    val (lprob, liprob) = predictValue.logProbs(c)
-    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
-    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
-  } else 0.0
-}
-
 /**
  * A single term in the objective function, defining the value and gradient.
  * The objective is minimized, and therefore value and gradient should be computed assuming minimization.
