@@ -49,8 +49,12 @@ class Matrix(val name: String) extends GrowableObservedMatrix {
   protected val _cells = new ArrayBuffer[Cell]
   protected val _trainCells = new ArrayBuffer[Cell]
   protected val _testCells = new ArrayBuffer[Cell]
-  protected val _rowIDs = new mutable.LinkedHashSet[ID]
-  protected val _colIDs = new mutable.LinkedHashSet[ID]
+  protected val _rowIDSet = new mutable.LinkedHashSet[ID]
+  protected val _colIDSet = new mutable.LinkedHashSet[ID]
+  var _changedRows = false
+  var _changedCols = false
+  protected var _rowIDs: Seq[ID] = _rowIDSet.toSeq
+  protected var _colIDs: Seq[ID] = _colIDSet.toSeq
 
   def cells: Seq[Cell] = _cells.toSeq
 
@@ -58,17 +62,30 @@ class Matrix(val name: String) extends GrowableObservedMatrix {
     _cells += c
     if (c.isTrain) _trainCells += c
     else _testCells += c
-    _rowIDs += c.row
-    _colIDs += c.col
+    if (_rowIDSet.add(c.row)) _changedRows = true
+    if (_colIDSet.add(c.col)) _changedCols = true
   }
 
-  override lazy val trainCells: Seq[Cell] = _trainCells
+  override def trainCells: Seq[Cell] = _trainCells
 
-  override lazy val testCells: Seq[Cell] = _testCells
+  override def testCells: Seq[Cell] = _testCells
 
-  override lazy val rowIDs: Seq[ID] = _rowIDs.toSeq
+  override def rowIDs: Seq[ID] = {
+    if (_changedRows) {
+      _rowIDs = _rowIDSet.toSeq
+      _changedRows = false
+    }
+    _rowIDs
+  }
 
-  override lazy val colIDs: Seq[ID] = _colIDs.toSeq
+  override def colIDs: Seq[ID] = {
+    if (_changedCols) {
+      _colIDs = _colIDSet.toSeq
+      _changedCols = false
+    }
+    _colIDs
+  }
+
 }
 
 object Matrix extends Logging {

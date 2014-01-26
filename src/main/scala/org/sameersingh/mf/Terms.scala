@@ -2,97 +2,175 @@ package org.sameersingh.mf
 
 import scala.math._
 
-/**
- * A single term in the objective function, defining the value and gradient.
- * The objective is minimized, and therefore value and gradient should be computed assuming minimization.
- */
-trait Term {
-  def params: Seq[Parameters]
-
-  // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double
-
-  def gradient(c: Cell): Gradients
-
-  def avgTrainingValue(m: ObservedMatrix): Double = avgValue(m.trainCells)
-
-  def avgTestValue(m: ObservedMatrix): Double = avgValue(m.testCells)
-
-  def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
-}
-
 trait PredictValue {
+  def predictParams: Seq[Parameters]
+
   def target: ObservedMatrix
 
   def pred(c: Cell): Double
 }
 
-abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
-                       val colFactors: DoubleDenseMatrix,
-                       val weight: ParamDouble,
-                       val target: ObservedMatrix) extends Term with PredictValue {
+trait PredictProb extends PredictValue {
 
-  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
-    this(params(u), params(v), params(target, "weight", w), target)
+  import math._
+
+  def prob(c: Cell): Double = min(1.0, max(0.0, pred(c)))
+
+  def logProbs(c: Cell): (Double, Double)
+}
+
+class DotValue(val rowFactors: DoubleDenseMatrix,
+               val colFactors: DoubleDenseMatrix,
+               val target: ObservedMatrix) extends PredictValue {
+
+  def this(params: ParameterSet, u: String, v: String, target: ObservedMatrix) =
+    this(params(u), params(v), target)
 
   assert(rowFactors.numCols == colFactors.numCols, "Number of columns for DotTerms should match %s->%d, %s->%d" format(rowFactors.name, rowFactors.numCols, colFactors.name, colFactors.numCols))
 
   private val _params: Seq[Parameters] = Seq(rowFactors, colFactors)
 
-  def params = _params
+  def predictParams = _params
 
   def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
 
   def pred(c: Cell): Double = dot(c)
 }
 
-abstract class DotTermWithBias(rowFactors: DoubleDenseMatrix,
-                               colFactors: DoubleDenseMatrix,
-                               val rowBias: ParamVector,
-                               val colBias: ParamVector,
-                               weight: ParamDouble,
-                               target: ObservedMatrix) extends DotTerm(rowFactors, colFactors, weight, target) {
-  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
-    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), params(target, "weight", w), target)
+class DotValueWithBias(rowFactors: DoubleDenseMatrix,
+                       colFactors: DoubleDenseMatrix,
+                       val rowBias: ParamVector,
+                       val colBias: ParamVector,
+                       target: ObservedMatrix) extends DotValue(rowFactors, colFactors, target) {
+  def this(params: ParameterSet, u: String, v: String, target: ObservedMatrix) =
+    this(params(u), params(v), params.f(u, "bias"), params.f(v, "bias"), target)
 
-  private val _params: Seq[Parameters] = super.params ++ Seq(rowBias, colBias)
+  private val _params: Seq[Parameters] = super.predictParams ++ Seq(rowBias, colBias)
 
-  override def params: Seq[Parameters] = _params
+  override def predictParams: Seq[Parameters] = _params
 
   override def dot(c: Cell): Double = super.dot(c) + rowBias(c.row) + colBias(c.col)
 }
 
+trait LogisticDot extends DotValue with PredictProb {
+  override def pred(c: Cell): Double = {
+    val score = dot(c)
+    val escore = exp(score)
+    escore / (escore + 1.0)
+  }
+
+  def logProbs(c: Cell) = {
+    val score = dot(c)
+    val logZ = log(exp(score) + 1.0)
+    val lprob = score - logZ
+    val liprob = -logZ // log(1) - logZ
+    (lprob, liprob)
+  }
+}
+
+trait Evaluator {
+  def eval(cells: Seq[Cell], prefix: String): Map[String, Double]
+
+  def evalTrain(m: ObservedMatrix) = eval(m.trainCells, "Train ")
+
+  def evalTest(m: ObservedMatrix) = eval(m.testCells, "Test ")
+}
+
+trait Error extends Evaluator {
+  def predictValue: PredictValue
+
+  // for stochastic estimation, the value for a cell
+  def value(c: Cell): Double
+
+  def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
+
+  def name: String
+
+  def eval(cells: Seq[Cell], prefix: String): Map[String, Double] = Map(prefix + name -> avgValue(cells))
+}
+
+trait L2 extends Error {
+  val name = "L2"
+
+  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
+    StrictMath.pow(c.value.double - predictValue.pred(c), 2.0)
+  } else 0.0
+}
+
+trait Hamming extends Error {
+  val name = "Hamming"
+
+  def predictValue: PredictProb
+
+  def threshold = 0.5
+
+  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
+    val prob = predictValue.prob(c)
+    if ((prob > threshold && c.value.double > 0.5) || (prob <= threshold && c.value.double <= 0.5))
+      0.0
+    else
+      1.0
+  } else 0.0
+}
+
+trait NLL extends Error {
+  val name = "NLL"
+
+  def predictValue: PredictProb
+
+  def value(c: Cell): Double = if (c.inMatrix == predictValue.target) {
+    // log prob of c.value
+    val (lprob, liprob) = predictValue.logProbs(c)
+    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
+    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
+  } else 0.0
+}
+
+/**
+ * A single term in the objective function, defining the value and gradient.
+ * The objective is minimized, and therefore value and gradient should be computed assuming minimization.
+ */
+trait Term {
+  def weight: ParamDouble
+
+  def params: Seq[Parameters]
+
+  def gradient(c: Cell): Gradients
+}
+
+trait ErrorTerm extends Term with Error {
+  def params: Seq[Parameters] = predictValue.predictParams
+}
 
 /**
  * A term that L2 distance between the true value and the dot product of the row and column factors for the given matrix
  */
-trait L2 extends DotTerm {
+class DotL2(val predictValue: DotValue,
+            val weight: ParamDouble) extends L2 with ErrorTerm {
+  def this(params: ParameterSet, dot: DotValue, w: Double) =
+    this(dot, params(dot.target, "weight", w))
 
-  def error(c: Cell) = c.value.double - dot(c)
-
-  // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double = if (c.inMatrix == target) {
-    StrictMath.pow(error(c), 2.0)
-  } else 0.0
+  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
+    this(params, new DotValue(params, u, v, target), w)
 
   def gradient(c: Cell): Gradients = {
     val grads = new Gradients
-    val row = rowFactors.r(c.row)
-    val col = colFactors.r(c.col)
-    val rowGrads = Array.fill(rowFactors.numCols)(0.0)
-    val colGrads = Array.fill(colFactors.numCols)(0.0)
+    val row = predictValue.rowFactors.r(c.row)
+    val col = predictValue.colFactors.r(c.col)
+    val rowGrads = Array.fill(predictValue.rowFactors.numCols)(0.0)
+    val colGrads = Array.fill(predictValue.colFactors.numCols)(0.0)
     // compute the error for the cell
-    val err = error(c)
+    val err = c.value.double - predictValue.pred(c)
     // do the rows first
-    for (k <- 0 until rowFactors.numCols) {
+    for (k <- 0 until predictValue.rowFactors.numCols) {
       rowGrads(k) = -2.0 * weight() * err * col(k)
     }
-    grads(rowFactors) = (c.row -> rowGrads)
+    grads(predictValue.rowFactors) = (c.row -> rowGrads)
     // then do the cols
-    for (k <- 0 until colFactors.numCols) {
+    for (k <- 0 until predictValue.colFactors.numCols) {
       colGrads(k) = -2.0 * weight() * err * row(k)
     }
-    grads(colFactors) = (c.col -> colGrads)
+    grads(predictValue.colFactors) = (c.col -> colGrads)
     grads
   }
 }
@@ -100,12 +178,19 @@ trait L2 extends DotTerm {
 /**
  * Introduces biases for rows and columns, but otherwise identical to L2DotTerm
  */
-trait L2WithBias extends DotTermWithBias with L2 {
+class DotWithBiasL2(predictValue: DotValueWithBias, weight: ParamDouble) extends DotL2(predictValue, weight) {
+  def this(params: ParameterSet, dot: DotValueWithBias, w: Double) =
+    this(dot, params(dot.target, "weight", w))
+
+  def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
+    this(params, new DotValueWithBias(params, u, v, target), w)
+
   override def gradient(c: Cell): Gradients = {
     val grads = super.gradient(c)
-    val g = -2.0 * weight() * error(c)
-    grads(rowBias) = (c.row -> Array(g))
-    grads(colBias) = (c.col -> Array(g))
+    val err = c.value.double - predictValue.pred(c)
+    val g = -2.0 * weight() * err
+    grads(predictValue.rowBias) = (c.row -> Array(g))
+    grads(predictValue.colBias) = (c.col -> Array(g))
     grads
   }
 }
@@ -113,47 +198,29 @@ trait L2WithBias extends DotTermWithBias with L2 {
 /**
  * Logistic loss suitable for binary matrices. The term is optimized by minimizing negative log-likelihood.
  */
-trait Logistic extends DotTerm {
-
-  // log prob of c.value
-  def error(c: Cell) = {
-    assert(c.value.double >= 0.0 || c.value.double <= 1.0)
-    val score = dot(c)
-    val logZ = log(exp(score) + 1.0)
-    val lprob = score - logZ
-    val liprob = -logZ // log(1) - logZ
-    -(c.value.double * lprob + (1.0 - c.value.double) * liprob) // negative log likelihood
-  }
-
-  // for stochastic estimation, the value for a cell
-  def value(c: Cell): Double = if (c.inMatrix == target) {
-    error(c)
-  } else 0.0
-
-  override def pred(c: Cell): Double = {
-    val score = dot(c)
-    val escore = exp(score)
-    escore / (escore + 1.0)
-  }
+class LogisticDotNLL(val predictValue: DotValue with LogisticDot,
+                     val weight: ParamDouble) extends NLL with ErrorTerm {
+  def this(params: ParameterSet, dot: DotValue with LogisticDot, w: Double) =
+    this(dot, params(dot.target, "weight", w))
 
   def gradient(c: Cell): Gradients = {
     val grads = new Gradients
-    val row = rowFactors.r(c.row)
-    val col = colFactors.r(c.col)
-    val rowGrads = Array.fill(rowFactors.numCols)(0.0)
-    val colGrads = Array.fill(colFactors.numCols)(0.0)
-    val prob = pred(c)
+    val row = predictValue.rowFactors.r(c.row)
+    val col = predictValue.colFactors.r(c.col)
+    val rowGrads = Array.fill(predictValue.rowFactors.numCols)(0.0)
+    val colGrads = Array.fill(predictValue.colFactors.numCols)(0.0)
+    val prob = predictValue.pred(c)
     val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     // do the rows first
-    for (k <- 0 until rowFactors.numCols) {
+    for (k <- 0 until predictValue.rowFactors.numCols) {
       rowGrads(k) = weight() * direction * col(k)
     }
-    grads(rowFactors) = (c.row -> rowGrads)
+    grads(predictValue.rowFactors) = (c.row -> rowGrads)
     // then do the cols
-    for (k <- 0 until colFactors.numCols) {
+    for (k <- 0 until predictValue.colFactors.numCols) {
       colGrads(k) = weight() * direction * row(k)
     }
-    grads(colFactors) = (c.col -> colGrads)
+    grads(predictValue.colFactors) = (c.col -> colGrads)
     grads
   }
 }
@@ -161,33 +228,17 @@ trait Logistic extends DotTerm {
 /**
  * Include bias in the dot term, but otherwise same as LogisticDotTerm
  */
-trait LogisticWithBias extends DotTermWithBias with Logistic {
+class LogisticDotWithBiasNLL(predictValue: DotValueWithBias with LogisticDot,
+                             weight: ParamDouble) extends LogisticDotNLL(predictValue, weight) {
   override def gradient(c: Cell): Gradients = {
     val grads = super.gradient(c)
-    val prob = pred(c)
+    val prob = predictValue.prob(c)
     val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     val g = weight() * direction
-    grads(rowBias) = (c.row -> Array(g))
-    grads(colBias) = (c.col -> Array(g))
+    grads(predictValue.rowBias) = (c.row -> Array(g))
+    grads(predictValue.colBias) = (c.col -> Array(g))
     grads
   }
-}
-
-trait BinaryError extends Logistic {
-  def threshold: Double = 0.5
-
-  override def value(c: Cell): Double = {
-    val score = dot(c)
-    val escore = exp(score)
-    val prob = escore / (escore + 1.0)
-    if ((prob > threshold && c.value.double > 0.5) || (prob <= threshold && c.value.double <= 0.5))
-      0.0
-    else
-      1.0
-  }
-
-  override def gradient(c: Cell): Gradients =
-    throw new Error("Gradient not defined, use only for evaluation")
 }
 
 /**
