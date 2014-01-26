@@ -15,6 +15,27 @@ trait Trainer {
   def trainCells(t: ObservedMatrix) = t.trainCells
 }
 
+class BatchedSGDTrainer(val batchSize: Int, val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implicit val random: Random) extends Trainer {
+
+  val params = terms.flatMap(_.params).distinct
+
+  def updateBatch(cs: Seq[Cell], stepSize: Double) {
+    val grads = new Gradients
+    for (c <- cs) {
+      terms.map(t => t.gradient(c)).foreach(gs => grads += gs)
+    }
+    for (p <- params) p.gradientUpdate(grads, stepSize)
+  }
+
+  def round(initStepSize: Double) {
+    var stepSize = initStepSize
+    for (batch <- targets.map(t => trainCells(t)).flatten.shuffle.grouped(batchSize)) {
+      updateBatch(batch, stepSize)
+    }
+  }
+
+}
+
 class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implicit val random: Random) extends Trainer {
 
   val params = terms.flatMap(_.params).distinct
@@ -27,10 +48,8 @@ class SGDTrainer(val targets: Seq[ObservedMatrix], val terms: Seq[Term])(implici
 
   def round(initStepSize: Double) {
     var stepSize = initStepSize
-    for (t <- targets) {
-      for (c <- trainCells(t).shuffle) {
-        update(c, stepSize)
-      }
+    for (c <- targets.map(t => trainCells(t)).flatten.shuffle) {
+      update(c, stepSize)
     }
   }
 
