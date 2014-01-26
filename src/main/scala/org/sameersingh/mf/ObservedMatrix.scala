@@ -39,8 +39,36 @@ trait ObservedMatrix {
     colIDs.size, colIDs.take(5).mkString("\t"))
 }
 
-trait MutableObservedMatrix extends ArrayBuffer[Cell] with ObservedMatrix {
-  def cells: Seq[Cell] = this
+trait GrowableObservedMatrix extends ObservedMatrix {
+  def +=(c: Cell): Unit
+
+  def ++=(cs: Traversable[Cell]): Unit = cs.foreach(this += _)
+}
+
+class Matrix(val name: String) extends GrowableObservedMatrix {
+  protected val _cells = new ArrayBuffer[Cell]
+  protected val _trainCells = new ArrayBuffer[Cell]
+  protected val _testCells = new ArrayBuffer[Cell]
+  protected val _rowIDs = new mutable.LinkedHashSet[ID]
+  protected val _colIDs = new mutable.LinkedHashSet[ID]
+
+  def cells: Seq[Cell] = _cells.toSeq
+
+  def +=(c: Cell): Unit = {
+    _cells += c
+    if (c.isTrain) _trainCells += c
+    else _testCells += c
+    _rowIDs += c.row
+    _colIDs += c.col
+  }
+
+  override lazy val trainCells: Seq[Cell] = _trainCells
+
+  override lazy val testCells: Seq[Cell] = _testCells
+
+  override lazy val rowIDs: Seq[ID] = _rowIDs.toSeq
+
+  override lazy val colIDs: Seq[ID] = _colIDs.toSeq
 }
 
 object Matrix extends Logging {
@@ -73,17 +101,7 @@ object Matrix extends Logging {
     } else {
       val keepRows = rowCounts.filter(p => p._2 >= minCellsInRow).map(_._1).toSet
       val keepCols = colCounts.filter(p => p._2 >= minCellsInCol).map(_._1).toSet
-      val pruned = new MutableObservedMatrix {
-        override lazy val trainCells: Seq[Cell] = super.trainCells
-
-        override lazy val testCells: Seq[Cell] = super.testCells
-
-        override lazy val rowIDs: Seq[ID] = super.rowIDs
-
-        override lazy val colIDs: Seq[ID] = super.colIDs
-
-        val name: String = m.name
-      }
+      val pruned = new Matrix(m.name)
 
       pruned ++= m.cells.filter(c => keepCols(c.col) && keepRows(c.row)).map(c => new Cell {
         val row: ID = c.row

@@ -2,7 +2,6 @@ package org.sameersingh.mf
 
 import org.junit._
 import Assert._
-import scala.collection.mutable.ArrayBuffer
 
 class MatrixTest {
 
@@ -10,9 +9,7 @@ class MatrixTest {
   def testPruning = {
     val numRows = 5
     val numCols = 5
-    val m = new MutableObservedMatrix {
-      def name: String = "m"
-    }
+    val m = new Matrix("m")
     for (i <- 0 until numRows)
       for (j <- 0 until numCols) {
         if (i < j) {

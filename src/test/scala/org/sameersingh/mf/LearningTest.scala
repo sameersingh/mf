@@ -6,7 +6,6 @@ import scala.collection.mutable.ArrayBuffer
 import org.sameersingh.mf.learner.{Trainer, BatchTrainer, SGDTrainer}
 import scala.util.Random
 
-@Test
 class LearningTest {
 
   implicit val random = new Random(0)
@@ -31,12 +30,7 @@ class LearningTest {
     //println(rowFactors)
     //println(colFactors)
 
-    val genCells = new ArrayBuffer[Cell]
-    val matrix = new ObservedMatrix {
-      val cells = genCells
-
-      def name = "testMatrix"
-    }
+    val matrix = new Matrix("testMatrix")
     for (i <- 0 until numRows)
       for (j <- 0 until numCols) {
         val rid = SimpleID(i, "r")
@@ -53,7 +47,7 @@ class LearningTest {
 
           val inMatrix = matrix
         }
-        genCells += cell
+        matrix += cell
       }
     matrix
   }

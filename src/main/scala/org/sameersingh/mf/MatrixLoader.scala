@@ -15,27 +15,14 @@ class MatrixLoader {
   def loadFile(filename: String, matrixName: String, trainingProp: Double, gzip: Boolean = false)(implicit cache: Cache, random: Random): ObservedMatrix = {
     val stream = if(gzip) new GZIPInputStream(new FileInputStream(filename)) else new FileInputStream(filename)
     val source = Source.fromInputStream(stream, "UTF-8")
-    val cellArray = new ArrayBuffer[Cell]
-    val matrix = new ObservedMatrix {
-      val cells: Seq[Cell] = cellArray
-
-      override lazy val trainCells: Seq[Cell] = super.trainCells
-
-      override lazy val testCells: Seq[Cell] = super.testCells
-
-      override lazy val rowIDs = super.rowIDs
-
-      override lazy val colIDs = super.colIDs
-
-      val name: String = matrixName
-    }
+    val matrix = new Matrix(matrixName)
     for(line <- source.getLines()) {
       val split = line.split('\t')
       assert(split.length > 0)
       val rowId = CachedID(split(0), matrixName + "_rows")
       for(c <- split.drop(1)) {
         val colId = CachedID(c, matrixName + "_cols")
-        cellArray += new Cell {
+        matrix += new Cell {
           val isTrain: Boolean = random.nextDouble < trainingProp
 
           val value: Val = DoubleValue(1.0)

@@ -21,10 +21,16 @@ trait Term {
   def avgValue(cells: Seq[Cell]): Double = cells.foldLeft(0.0)(_ + value(_)) / cells.size.toDouble
 }
 
+trait PredictValue {
+  def target: ObservedMatrix
+
+  def pred(c: Cell): Double
+}
+
 abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
                        val colFactors: DoubleDenseMatrix,
                        val weight: ParamDouble,
-                       val target: ObservedMatrix) extends Term {
+                       val target: ObservedMatrix) extends Term with PredictValue {
 
   def this(params: ParameterSet, u: String, v: String, w: Double, target: ObservedMatrix) =
     this(params(u), params(v), params(target, "weight", w), target)
@@ -36,6 +42,8 @@ abstract class DotTerm(val rowFactors: DoubleDenseMatrix,
   def params = _params
 
   def dot(c: Cell) = rowFactors.r(c.row).zip(colFactors.r(c.col)).foldLeft(0.0)((s, uv) => s + uv._1 * uv._2)
+
+  def pred(c: Cell): Double = dot(c)
 }
 
 abstract class DotTermWithBias(rowFactors: DoubleDenseMatrix,
@@ -122,15 +130,19 @@ trait Logistic extends DotTerm {
     error(c)
   } else 0.0
 
+  override def pred(c: Cell): Double = {
+    val score = dot(c)
+    val escore = exp(score)
+    escore / (escore + 1.0)
+  }
+
   def gradient(c: Cell): Gradients = {
     val grads = new Gradients
     val row = rowFactors.r(c.row)
     val col = colFactors.r(c.col)
     val rowGrads = Array.fill(rowFactors.numCols)(0.0)
     val colGrads = Array.fill(colFactors.numCols)(0.0)
-    val score = dot(c)
-    val escore = exp(score)
-    val prob = escore / (escore + 1.0)
+    val prob = pred(c)
     val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     // do the rows first
     for (k <- 0 until rowFactors.numCols) {
@@ -152,9 +164,7 @@ trait Logistic extends DotTerm {
 trait LogisticWithBias extends DotTermWithBias with Logistic {
   override def gradient(c: Cell): Gradients = {
     val grads = super.gradient(c)
-    val score = dot(c)
-    val escore = exp(score)
-    val prob = escore / (escore + 1.0)
+    val prob = pred(c)
     val direction = -(c.value.double - prob) // gradient of negative log-likelihood
     val g = weight() * direction
     grads(rowBias) = (c.row -> Array(g))
