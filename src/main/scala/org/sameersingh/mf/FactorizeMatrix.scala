@@ -47,37 +47,24 @@ object FactorizeMatrix extends App {
   val nll = new NLL {
     def predictValue = dotValue
   }
-  val l2Error = new L2 {
+  val l2 = new L2 {
+    def predictValue = dotValue
+  }
+  val f1 = new PerCellF1 {
     def predictValue = dotValue
   }
   val hamming = new Hamming {
     def predictValue = dotValue
   }
-  val eval = Evaluators(nll, hamming)
+  val eval = Evaluators(nll, f1, l2, hamming)
 
   for (i <- 0 until 500) {
     println("-----------------------")
     println("        ROUND %d" format (i + 1))
     println("-----------------------")
-    TimeUtil.snapshot("Training LL    : " + nll.evalTrain(m))
-    TimeUtil.snapshot("Test LL        : " + nll.evalTest(m))
-    TimeUtil.snapshot("Test LL (0)    : " + nll.avgValue(zeroCells))
-    //TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
-    //TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
-    //TimeUtil.snapshot("Test L2 (0)    : " + l2Error.avgValue(zeroCells))
-    TimeUtil.snapshot("Training Err   : " + hamming.evalTrain(m))
-    TimeUtil.snapshot("Test Err       : " + hamming.evalTest(m))
-    TimeUtil.snapshot("Test Err (0)   : " + hamming.avgValue(zeroCells))
     TimeUtil.snapshot(eval.string(m, zeroCells))
     TimeUtil.snapshot("L2 R value     : " + l2r.value / l2r.weight())
     TimeUtil.snapshot("L2 C value     : " + l2c.value / l2c.weight())
-    //*/
-    /*
-    println("Row Factors:")
-    println(params("r"))
-    println("Col Factors:")
-    println(params("c"))
-    */
     trainer.round(0.01)
     TimeUtil.snapshot("Round done.")
     DoubleDenseMatrix.save(r, rOutputFilename + (i % 5), true)
@@ -87,15 +74,6 @@ object FactorizeMatrix extends App {
   println("-----------------------")
   println("        FINAL")
   println("-----------------------")
-  TimeUtil.snapshot("Training LL    : " + nll.evalTrain(m))
-  TimeUtil.snapshot("Test LL        : " + nll.evalTest(m))
-  TimeUtil.snapshot("Test LL (0)    : " + nll.avgValue(zeroCells))
-  //TimeUtil.snapshot("Training L2    : " + l2Error.avgTrainingValue(m))
-  //TimeUtil.snapshot("Test L2        : " + l2Error.avgTestValue(m))
-  //TimeUtil.snapshot("Test L2 (0)    : " + l2Error.avgValue(zeroCells))
-  TimeUtil.snapshot("Training Err   : " + hamming.evalTrain(m))
-  TimeUtil.snapshot("Test Err       : " + hamming.evalTest(m))
-  TimeUtil.snapshot("Test Err (0)   : " + hamming.avgValue(zeroCells))
   TimeUtil.snapshot(eval.string(m, zeroCells))
   TimeUtil.snapshot("L2 R value     : " + l2r.value / l2r.weight())
   TimeUtil.snapshot("L2 C value     : " + l2c.value / l2c.weight())

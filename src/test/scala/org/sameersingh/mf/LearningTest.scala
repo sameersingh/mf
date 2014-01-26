@@ -24,11 +24,6 @@ class LearningTest {
         colFactors(SimpleID(j, "c"), k) = random.nextGaussian() / math.sqrt(numComps.toDouble)
       }
     }
-    //println("L2 R value     : " + new L2Regularization(rowFactors, new ParamDouble("w", 1.0)).value)
-    //println("L2 C value     : " + new L2Regularization(colFactors, new ParamDouble("w", 1.0)).value)
-
-    //println(rowFactors)
-    //println(colFactors)
 
     val matrix = new Matrix("testMatrix")
     for (i <- 0 until numRows)
@@ -70,23 +65,7 @@ class LearningTest {
   }
 
   def train(trainer: Trainer, term: DotL2, l2r: L2Regularization, l2c: L2Regularization, m: ObservedMatrix) {
-    //println("Init Training value : " + term.avgTrainingValue(m))
-    //println("Init Test value     : " + term.avgTestValue(m))
     for (i <- 0 until 500) {
-      /*println("-----------------------")
-      println("        ROUND %d" format (i + 1))
-      println("-----------------------")
-      println("Training value : " + term.avgTrainingValue(m))
-      println("Test value     : " + term.avgTestValue(m))
-      println("L2 R value     : " + l2r.value / l2r.weight())
-      println("L2 C value     : " + l2c.value / l2c.weight())
-      */
-      /*
-      println("Row Factors:")
-      println(params("r"))
-      println("Col Factors:")
-      println(params("c"))
-      */
       trainer.round(0.01)
     }
     println(term.evalTrain(m).mkString("\n"))
