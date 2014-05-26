@@ -128,7 +128,7 @@ class LearningTest {
       val m = smallSingleMatrix(1, 0.0, Util.sigmoid)
       //val m = smallSingleMatrix(1, 0.0, x => if(random.nextDouble() < Util.sigmoid(x)) 1.0 else 0.0)
       //println(m)
-      val fopt = new FactorieOptimizer(m, FactorieConfig(1, 0.1, 1.0, 500, 100)) with LogisticLoss
+      val fopt = new BasicFactorization(m, FactorizationConfig(1, 0.1, 1.0, 500, 100)) with LogisticLoss
       println(fopt.avgValue(m.trainCells))
       fopt.optimize
       fopt.debug
@@ -144,7 +144,7 @@ class LearningTest {
       println(" --- Factorie L2 %d ---" format (i + 1))
       val m = smallSingleMatrix(1, 0.0)
       //println(m)
-      val fopt = new FactorieOptimizer(m, FactorieConfig(1, 0.1, 0.01, 500, 100)) with L2Loss
+      val fopt = new BasicFactorization(m, FactorizationConfig(1, 0.1, 0.01, 500, 100)) with L2Loss
       println(fopt.avgValue(m.trainCells))
       fopt.optimize
       fopt.debug
@@ -193,7 +193,7 @@ class LearningTest {
       override val col: ID = SimpleID(1, "c")
       override val row: ID = SimpleID(1, "r")
     }
-    val fopt = new FactorieOptimizer(m, FactorieConfig(1, 0.0, 1.0, 500, 100)) with LogisticLoss
+    val fopt = new BasicFactorization(m, FactorizationConfig(1, 0.0, 1.0, 500, 100)) with LogisticLoss
     fopt.optimize
     fopt.debug
     println(fopt.avgValue(m.trainCells))

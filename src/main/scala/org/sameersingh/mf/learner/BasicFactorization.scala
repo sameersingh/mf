@@ -13,9 +13,9 @@ import scala.util.Random
  * @author sameer
  * @since 5/7/14.
  */
-case class FactorieConfig(k: Int, lambda: Double, baseRate: Double, iterations: Int, logEvery: Int)
+case class FactorizationConfig(k: Int, lambda: Double, baseRate: Double, iterations: Int, logEvery: Int)
 
-abstract class FactorieOptimizer(val target: ObservedMatrix, val config: FactorieConfig) {
+abstract class BasicFactorization(val target: ObservedMatrix, val config: FactorizationConfig) {
 
   val random = new Random()
 
@@ -83,7 +83,7 @@ abstract class FactorieOptimizer(val target: ObservedMatrix, val config: Factori
 
 }
 
-trait LogisticLoss extends FactorieOptimizer {
+trait LogisticLoss extends BasicFactorization {
 
   def pred(row: Tensor1, col: Tensor1): Double = {
     val score = row dot col
@@ -117,7 +117,7 @@ trait LogisticLoss extends FactorieOptimizer {
   }
 }
 
-trait L2Loss extends FactorieOptimizer {
+trait L2Loss extends BasicFactorization {
   override def loss(pred: Double, truth: Double): Double = StrictMath.pow(truth - pred, 2.0)
 
   override def pred(row: Tensor1, col: Tensor1): Double = row dot col
