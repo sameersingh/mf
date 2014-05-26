@@ -37,7 +37,7 @@ object FactorizeMatrix extends App {
   params(c, "L2RegCoeff") = 0.1
   // objective terms
   val dotValue = new DotValue(params, "r", "c", m) with LogisticDot
-  val term = new DotL2(params, dotValue, 1.0)
+  val term = new LogisticDotNLL(params, dotValue, 1.0)
   val l2r = new L2Regularization(params, "r", m.trainCells.size)
   val l2c = new L2Regularization(params, "c", m.trainCells.size)
   val terms = Seq(term, l2r, l2c)
