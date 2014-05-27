@@ -73,10 +73,9 @@ object TestTACModel {
       val colEmbeddingsTensor = fopt.params.colFactors.value: Tensor2
       val embeddingSize = colEmbeddingsTensor.dim2
       val colEmbeddings = readEmbeddings(opts.colEmbeddingsPath.value)
-      for (col <- testMatrix.colIDs) {
+      for (col <- testMatrix.colIDs; embedding <- colEmbeddings.get(col.id)) {
         val offset = col.idx * embeddingSize
-        val tensor = colEmbeddings(col.id)
-        tensor.foreachActiveElement((i, v) => colEmbeddingsTensor(offset + i) = v)
+        embedding.foreachActiveElement((i, v) => colEmbeddingsTensor(offset + i) = v)
       }
     }
     println(fopt.avgValue(testMatrix.trainCells))
@@ -86,7 +85,10 @@ object TestTACModel {
     val preds = new ArrayBuffer[String]
     Source.fromFile(opts.testMatrixPath.value, "UTF-8").getLines().filter(_.contains("?")).foreach(line => {
       val Array(rowName, colName, _) = line.split("\t")
-      val p = fopt.pred(fopt.params.rowTensor(rowIds(rowName)), fopt.params.colTensor(colIds(colName)))
+      // is 0.0 a good default prediction for stuff it hasn't seen?
+      var p = 0.0
+      for (rowid <- rowIds.get(rowName); colid <- colIds.get(colName))
+        p = fopt.pred(fopt.params.rowTensor(rowIds(rowName)), fopt.params.colTensor(colIds(colName)))
       preds += (rowName + "\t" + colName + "\t" + p)
     })
     write(opts.outputPredictionsPath.value)(writer => {
