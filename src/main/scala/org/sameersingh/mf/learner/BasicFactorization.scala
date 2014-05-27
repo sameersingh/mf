@@ -23,7 +23,7 @@ abstract class BasicFactorization(val target: ObservedMatrix, val config: Factor
     val t = new DenseTensor2(l, config.k)
     for (i <- 0 until t.size)
       t.update(i, random.nextDouble() / 1000.0)
-    println("init: " + t.mkString(", "))
+//    println("init: " + t.mkString(", "))
     t
   }
 

@@ -28,10 +28,10 @@ object TrainTACModel {
     val trainMatrix = LoadTAC.loadMatrix(opts.trainMatrixPath.value, "train")
     val fcfg = loadFactorizationConfig(opts)
     val fopt = new BasicFactorization(trainMatrix, fcfg) with LogisticLoss
-    println(fopt.avgValue(trainMatrix.trainCells))
+//    println(fopt.avgValue(trainMatrix.trainCells))
     fopt.optimize
 //    fopt.debug
-    println(fopt.avgValue(trainMatrix.trainCells))
+//    println(fopt.avgValue(trainMatrix.trainCells))
     if (opts.colEmbeddingsPath.value != "")
       writeEmbeddings(trainMatrix.colIDs.view.map(id => (id, fopt.params.colTensor(id))), opts.colEmbeddingsPath.value)
     if (opts.rowEmbeddingsPath.value != "")
@@ -78,10 +78,10 @@ object TestTACModel {
         embedding.foreachActiveElement((i, v) => colEmbeddingsTensor(offset + i) = v)
       }
     }
-    println(fopt.avgValue(testMatrix.trainCells))
+//    println(fopt.avgValue(testMatrix.trainCells))
     fopt.optimize
 //    fopt.debug
-    println(fopt.avgValue(testMatrix.trainCells))
+//    println(fopt.avgValue(testMatrix.trainCells))
     val preds = new ArrayBuffer[String]
     Source.fromFile(opts.testMatrixPath.value, "UTF-8").getLines().filter(_.contains("?")).foreach(line => {
       val Array(rowName, colName, _) = line.split("\t")
