@@ -64,6 +64,8 @@ abstract class BasicFactorization(val target: ObservedMatrix, val config: Factor
     val trainer = new cc.factorie.optimize.OnlineTrainer(params.parameters, optimizer, config.iterations, config.logEvery)
     for (i <- 0 until config.iterations)
       trainer.processExamples(target.trainCells.map(c => new CellExample(c, params)))
+
+    optimizer.finalizeWeights(params.parameters)
   }
 
   def debug {
