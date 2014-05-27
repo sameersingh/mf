@@ -24,6 +24,7 @@ object FactorizeMatrix extends App {
   val zeroCells = (0 until numZeroCells).map(i => Matrix.randomSampledCell(m, DoubleValue(0.0)))
   TimeUtil.snapshot(m.toString)
 
+
   val numComps = 100
   val r = new DoubleDenseMatrix("r", numComps, () => random.nextGaussian() / 100.0)
   val c = new DoubleDenseMatrix("c", numComps, () => random.nextGaussian() / 100.0)
