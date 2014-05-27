@@ -1,0 +1,8 @@
+To run a baseline factorization model on the TAC data set and print predictions,
+run:
+
+convertToCells.sh #make sure to run this on blake, it generates a few gigabytes of text data files
+generateTrainTest.sh
+runTAC.sh
+
+after setting paths in these files as appropriate.

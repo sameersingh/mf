@@ -4,7 +4,7 @@ import org.sameersingh.mf._
 import cc.factorie.{optimize, Example}
 import cc.factorie.util.DoubleAccumulator
 import cc.factorie.la._
-import cc.factorie.model.{Parameters => FParameters}
+import cc.factorie.model.{Parameters => FParameters, Weights2}
 import scala.math._
 import cc.factorie.optimize.{L2RegularizedConstantRate, ConstantLearningRate, OnlineTrainer}
 import scala.util.Random
@@ -13,7 +13,7 @@ import scala.util.Random
  * @author sameer
  * @since 5/7/14.
  */
-case class FactorizationConfig(k: Int, lambda: Double, baseRate: Double, iterations: Int, logEvery: Int)
+case class FactorizationConfig(k: Int, lambda: Double, baseRate: Double, iterations: Int, logEvery: Int, updateRows: Boolean = true, updateCols: Boolean = true)
 
 abstract class BasicFactorization(val target: ObservedMatrix, val config: FactorizationConfig) {
 
@@ -28,8 +28,8 @@ abstract class BasicFactorization(val target: ObservedMatrix, val config: Factor
   }
 
   class Parameters extends FParameters {
-    val rowFactors = Weights(newDenseTensor2(target.rowIDs.size))
-    val colFactors = Weights(newDenseTensor2(target.colIDs.size))
+    val rowFactors: Weights2 = Weights(newDenseTensor2(target.rowIDs.size))
+    val colFactors: Weights2 = Weights(newDenseTensor2(target.colIDs.size))
 
     def rowTensor2 = parameters(rowFactors).asInstanceOf[Tensor2]
 
@@ -101,19 +101,23 @@ trait LogisticLoss extends BasicFactorization {
   }
 
   def rowAndColGrads(c: Cell, row: Tensor1, col: Tensor1, est: Double, gradient: WeightsMapAccumulator) {
-    val rowGrads = Array.fill(row.size)(0.0)
-    val colGrads = Array.fill(col.size)(0.0)
     val direction = (c.value.double - est) // gradient of negative log-likelihood
-    // do the rows first
-    for (k <- 0 until row.size) {
-      rowGrads(k) = direction * col(k)
+    if (config.updateRows) {
+      val rowGrads = Array.fill(row.size)(0.0)
+      // do the rows first
+      for (k <- 0 until row.size) {
+        rowGrads(k) = direction * col(k)
+      }
+      gradient.accumulate(params.rowFactors, new SingletonLayeredTensor2(target.rowIDs.size, config.k, c.row.idx, 1.0, new DenseTensor1(rowGrads)))
     }
-    gradient.accumulate(params.rowFactors, new SingletonLayeredTensor2(target.rowIDs.size, config.k, c.row.idx, 1.0, new DenseTensor1(rowGrads)))
-    // then do the cols
-    for (k <- 0 until col.size) {
-      colGrads(k) = direction * row(k)
+    if (config.updateCols) {
+      val colGrads = Array.fill(col.size)(0.0)
+      // then do the cols
+      for (k <- 0 until col.size) {
+        colGrads(k) = direction * row(k)
+      }
+      gradient.accumulate(params.colFactors, new SingletonLayeredTensor2(target.colIDs.size, config.k, c.col.idx, 1.0, new DenseTensor1(colGrads)))
     }
-    gradient.accumulate(params.colFactors, new SingletonLayeredTensor2(target.colIDs.size, config.k, c.col.idx, 1.0, new DenseTensor1(colGrads)))
   }
 }
 
