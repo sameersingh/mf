@@ -108,7 +108,11 @@ trait LogisticLoss extends BasicFactorization {
       for (k <- 0 until row.size) {
         rowGrads(k) = direction * col(k)
       }
-      gradient.accumulate(params.rowFactors, new SingletonLayeredTensor2(target.rowIDs.size, config.k, c.row.idx, 1.0, new DenseTensor1(rowGrads)))
+      // we should be able to use this tensor directly but factorie doesnt support for l2 reg yet (can fix)
+      val outerRowGradTensor = new Outer1Tensor2(new SingletonBinaryTensor1(target.rowIDs.size, c.row.idx), new DenseTensor1(rowGrads))
+      val rowGradTensor = new SparseIndexedTensor2(target.rowIDs.size, row.size)
+      rowGradTensor += outerRowGradTensor
+      gradient.accumulate(params.rowFactors, rowGradTensor)
     }
     if (config.updateCols) {
       val colGrads = Array.fill(col.size)(0.0)
@@ -116,7 +120,11 @@ trait LogisticLoss extends BasicFactorization {
       for (k <- 0 until col.size) {
         colGrads(k) = direction * row(k)
       }
-      gradient.accumulate(params.colFactors, new SingletonLayeredTensor2(target.colIDs.size, config.k, c.col.idx, 1.0, new DenseTensor1(colGrads)))
+      // we should be able to use this tensor directly but factorie doesnt support for l2 reg yet (can fix)
+      val outerColGradTensor = new Outer1Tensor2(new SingletonBinaryTensor1(target.colIDs.size, c.col.idx), new DenseTensor1(colGrads))
+      val colGradTensor = new SparseIndexedTensor2(target.colIDs.size, col.size)
+      colGradTensor += outerColGradTensor
+      gradient.accumulate(params.colFactors, colGradTensor)
     }
   }
 }
