@@ -60,7 +60,7 @@ dimensionSize="50"
 lambda="0.1"
 iterations="10"
 baseRate="0.01"
-logEvery="1"
+logEvery="1000000"
 
 sharedOptionsString="--embedding-size=$dimensionSize --lambda=$lambda --iterations=$iterations --base-rate=$baseRate --log-every=$logEvery"
 
@@ -79,12 +79,12 @@ testOptionsString="--test-matrix=$testMatrix --col-embeddings=$colEmbeddingsPath
 
 java -Xmx132G -cp target/mf-1.0-SNAPSHOT-jar-with-dependencies.jar \
 org.sameersingh.mf.TrainTACModel \
-"$trainOptionsString $sharedOptionsString"
+$trainOptionsString $sharedOptionsString
 
 java -Xmx132G -cp target/mf-1.0-SNAPSHOT-jar-with-dependencies.jar \
-org.sameersingh.mf.TrainTACModel \
-"$devOptionsString $sharedOptionsString"
+org.sameersingh.mf.TestTACModel \
+$devOptionsString $sharedOptionsString
 
 java -Xmx132G -cp target/mf-1.0-SNAPSHOT-jar-with-dependencies.jar \
-org.sameersingh.mf.TrainTACModel \
-"$testOptionsString $sharedOptionsString"
+org.sameersingh.mf.TestTACModel \
+$testOptionsString $sharedOptionsString
