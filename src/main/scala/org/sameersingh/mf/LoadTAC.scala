@@ -30,7 +30,7 @@ object TrainTACModel {
     val fopt = new BasicFactorization(trainMatrix, fcfg) with LogisticLoss
     println(fopt.avgValue(trainMatrix.trainCells))
     fopt.optimize
-    fopt.debug
+//    fopt.debug
     println(fopt.avgValue(trainMatrix.trainCells))
     if (opts.colEmbeddingsPath.value != "")
       writeEmbeddings(trainMatrix.colIDs.view.map(id => (id, fopt.params.colTensor(id))), opts.colEmbeddingsPath.value)
@@ -80,7 +80,7 @@ object TestTACModel {
     }
     println(fopt.avgValue(testMatrix.trainCells))
     fopt.optimize
-    fopt.debug
+//    fopt.debug
     println(fopt.avgValue(testMatrix.trainCells))
     val preds = new ArrayBuffer[String]
     Source.fromFile(opts.testMatrixPath.value, "UTF-8").getLines().filter(_.contains("?")).foreach(line => {
