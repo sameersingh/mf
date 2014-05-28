@@ -111,13 +111,13 @@ class LearningTest {
   def sgdTrainingLogisticSmallSingle() {
     for (i <- 0 until 5) {
       println(" --- SGD Logistic %d ---" format (i + 1))
-      val m = smallSingleMatrix(1, 0.01, Util.sigmoid)
+      val m = smallSingleMatrix(1, 0.0, x => Util.sigmoid(100*x))
       //println(m)
       val (term, l2r, l2c) = logTerms(m)
       val trainer = new SGDTrainer(Seq(m), Seq(term, l2r, l2c))
       train(trainer, term, l2r, l2c, m)
-      assertEquals(0.0, term.avgValue(m.trainCells), 0.001)
-      assertEquals(0.0, term.avgValue(m.testCells), 0.035)
+      assertEquals(0.0, term.avgValue(m.trainCells), 0.2)
+      assertEquals(0.0, term.avgValue(m.testCells), 0.2)
     }
   }
 
@@ -125,16 +125,19 @@ class LearningTest {
   def factorieLogisticTrainingSmallSingle() {
     for (i <- 0 until 1) {
       println(" --- Factorie Logistic %d ---" format (i + 1))
-      val m = smallSingleMatrix(1, 0.0, Util.sigmoid)
-      //val m = smallSingleMatrix(1, 0.0, x => if(random.nextDouble() < Util.sigmoid(x)) 1.0 else 0.0)
+      // val m = smallSingleMatrix(3, 0.0, Util.sigmoid)
+      val m = smallSingleMatrix(1, 0.0, x => if(random.nextDouble() < Util.sigmoid(x*100)) 1.0 else 0.0)
       //println(m)
       val fopt = new BasicFactorization(m, FactorizationConfig(1, 0.1, 1.0, 500, 100)) with LogisticLoss
       println(fopt.avgValue(m.trainCells))
+      println(fopt.avgValue(m.testCells))
       fopt.optimize
       fopt.debug
       println(fopt.avgValue(m.trainCells))
       println(fopt.avgValue(m.testCells))
-      //assertEquals(0.0, fopt.avgValue(m.testCells), 0.0025)
+      // m.trainCells.foreach(c => println(fopt.pred(c) + "\t" + c.value + "\t" + fopt.loss(c)))
+      assertEquals(0.0, fopt.avgValue(m.trainCells), 0.1)
+      assertEquals(0.0, fopt.avgValue(m.testCells), 0.25)
     }
   }
 
@@ -155,7 +158,7 @@ class LearningTest {
   }
 
   @Test
-  def singleCellTest() {
+  def factorieLogisticFourCells() {
     val m = new Matrix("testMatrix")
     m += new Cell {
       override val inMatrix: ObservedMatrix = m
@@ -196,6 +199,15 @@ class LearningTest {
     val fopt = new BasicFactorization(m, FactorizationConfig(1, 0.0, 1.0, 500, 100)) with LogisticLoss
     fopt.optimize
     fopt.debug
-    println(fopt.avgValue(m.trainCells))
+    val loss = fopt.avgValue(m.trainCells)
+    println(loss)
+    assert(math.abs(loss) < 1.0e-4)
+    val col0emb = fopt.params.colTensor(SimpleID(0, "c"))(0)
+    val col1emb = fopt.params.colTensor(SimpleID(1, "c"))(0)
+    val row0emb = fopt.params.rowTensor(SimpleID(0, "r"))(0)
+    val row1emb = fopt.params.rowTensor(SimpleID(1, "r"))(0)
+    println(col0emb + "\t" + col1emb)
+    assertEquals(row0emb, row1emb, 1e-3)
+    assert(if(row0emb > 0) col0emb < col1emb else col0emb > col1emb)
   }
 }
