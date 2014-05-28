@@ -77,10 +77,16 @@ abstract class BasicFactorization(val target: ObservedMatrix, val config: Factor
 
   def loss(pred: Double, truth: Double): Double
 
-  def loss(c: Cell, p: Parameters): Double = {
+  def loss(c: Cell, p: Parameters = params): Double = {
     val row = p.rowTensor(c.row)
     val col = p.colTensor(c.col)
     loss(pred(row, col), c.value.double)
+  }
+
+  def pred(c: Cell, p: Parameters = params): Double = {
+    val row = p.rowTensor(c.row)
+    val col = p.colTensor(c.col)
+    pred(row, col)
   }
 
 }
