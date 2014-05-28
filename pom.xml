@@ -117,7 +117,7 @@
 
     <build>
         <sourceDirectory>src/main/scala</sourceDirectory>
-        <!--<testSourceDirectory>src/test/scala</testSourceDirectory>-->
+        <testSourceDirectory>src/test/scala</testSourceDirectory>
         <plugins>
             <plugin>
                 <!-- see http://davidb.github.com/scala-maven-plugin -->
@@ -128,7 +128,7 @@
                     <execution>
                         <goals>
                             <goal>compile</goal>
-                            <!--<goal>testCompile</goal>-->
+                            <goal>testCompile</goal>
                         </goals>
                         <configuration>
                             <args>
