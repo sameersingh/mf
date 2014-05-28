@@ -137,17 +137,32 @@ trait L2Loss extends BasicFactorization {
   override def pred(row: Tensor1, col: Tensor1): Double = row dot col
 
   override def rowAndColGrads(c: Cell, row: Tensor1, col: Tensor1, est: Double, gradient: WeightsMapAccumulator): Unit = {
-    val rowGrads = Array.fill(row.size)(0.0)
-    val colGrads = Array.fill(col.size)(0.0)
-    val err = c.value.double - est
-    // do the rows first
-    for (k <- 0 until row.size) {
-      rowGrads(k) = 2.0 * err * col(k)
-    }
-    for (k <- 0 until col.size) {
-      colGrads(k) = 2.0 * err * row(k)
-    }
-    gradient.accumulate(params.rowFactors, new SingletonLayeredTensor2(target.rowIDs.size, config.k, c.row.idx, 1.0, new DenseTensor1(rowGrads)))
-    gradient.accumulate(params.colFactors, new SingletonLayeredTensor2(target.colIDs.size, config.k, c.col.idx, 1.0, new DenseTensor1(colGrads)))
+    val err = (c.value.double - est)
+     if (config.updateRows) {
+       val rowGrads = Array.fill(row.size)(0.0)
+       // do the rows first
+       for (k <- 0 until row.size) {
+         rowGrads(k) = 2.0 * err * col(k)
+       }
+       // we should be able to use this tensor directly but factorie doesnt support for l2 reg yet (can fix)
+       val outerRowGradTensor = new Outer1Tensor2(new SingletonBinaryTensor1(target.rowIDs.size, c.row.idx), new DenseTensor1(rowGrads))
+       val rowGradTensor = new SparseIndexedTensor2(target.rowIDs.size, row.size)
+       rowGradTensor += outerRowGradTensor
+       gradient.accumulate(params.rowFactors, rowGradTensor)
+     }
+     if (config.updateCols) {
+       val colGrads = Array.fill(col.size)(0.0)
+       // then do the cols
+       for (k <- 0 until col.size) {
+         colGrads(k) = 2.0 * err * row(k)
+       }
+       // we should be able to use this tensor directly but factorie doesnt support for l2 reg yet (can fix)
+       val outerColGradTensor = new Outer1Tensor2(new SingletonBinaryTensor1(target.colIDs.size, c.col.idx), new DenseTensor1(colGrads))
+       val colGradTensor = new SparseIndexedTensor2(target.colIDs.size, col.size)
+       colGradTensor += outerColGradTensor
+       gradient.accumulate(params.colFactors, colGradTensor)
+     }
+
+
   }
 }
