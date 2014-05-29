@@ -6,7 +6,8 @@ use_intertext=true
 use_ngrams=false
 
 getCells() {
-	awk -F$'\t' 'BEGIN{OFS="\t"}{split($NF,a," "); for (e in a) if (a[e]!="+1") {split(a[e],s,":"); print NR,s[1],s[2]}}';
+	#awk -F$'\t' 'BEGIN{OFS="\t"}{split($NF,a," "); for (e in a) if (a[e]!="+1") {split(a[e],s,":"); print NR,s[1],s[2]}}';
+	awk -F$'\t' 'BEGIN{OFS="\t"}{split($NF,a," "); for (e in a) if (a[e]!="+1") {split(a[e],s,":"); print NR,s[1],"1"}}';
 }
 export -f getCells
 
@@ -15,15 +16,22 @@ cat "${basePath}train_relation.feats" \
 | getCells \
 > "${basePath}train.mtx"
 
+head -1 "${basePath}train.mtx"
+
 cat "${basePath}dev_relation.feats" \
 | getCells \
 | awk -F$'\t' 'BEGIN{OFS="\t"}{print $1,$2,"?"}' \
 > "${basePath}dev.mtx"
 
+head -1 "${basePath}dev.mtx"
+
 cat "${basePath}test_relation.feats" \
 | getCells \
 | awk -F$'\t' 'BEGIN{OFS="\t"}{print $1,$2,"?"}' \
 > "${basePath}test.mtx"
+
+head -1 "${basePath}test.mtx"
+
 echo "... done."
 
 if [ $use_intertext = true ]; then
