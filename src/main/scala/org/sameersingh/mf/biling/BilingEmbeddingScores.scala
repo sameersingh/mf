@@ -5,7 +5,7 @@ import scala.collection.mutable
 /**
  * Created by sameer on 1/30/15.
  */
-class BilingEmbeddingScores(bilingMTDir: String) extends WordSimilarity {
+class BilingEmbeddingScores(bilingMTDir: String = "data/muling-re/biling") extends WordSimilarity {
 
   val zhEmbds = new mutable.HashMap[String, Array[Double]] {
     override def default(key: String): Array[Double] = Array.empty
@@ -69,7 +69,7 @@ class BilingEmbeddingScores(bilingMTDir: String) extends WordSimilarity {
 
 object BilingEmbeddingScores {
   def main(args: Array[String]): Unit = {
-    val dir = "/home/sameer/Dropbox/data/biling_mt/"
+    val dir = "data/muling-re/biling"
     val sim = new BilingEmbeddingScores(dir)
     val words = Seq("born", "wife", "married", "president")
     for(w <- words) {
