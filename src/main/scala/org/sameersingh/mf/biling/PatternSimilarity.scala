@@ -10,7 +10,7 @@ import scala.collection.mutable.ArrayBuffer
  * @author sameer
  * @since 2/1/15.
  */
-case class Pattern(pattern: String, words: Seq[String], count: Int)
+case class Pattern(pattern: String, cat: String, ners: (String, String), words: Seq[String], count: Int)
 
 trait PatternSimilarity extends Logging {
 
@@ -22,12 +22,12 @@ trait PatternSimilarity extends Logging {
     val zhPatterns = RunPatternSimilarity.readFile(zhFile)
     logger.info(" # zh patterns: " + zhPatterns.length)
     val w = new PrintWriter(new OutputStreamWriter(new FileOutputStream(output), "UTF-8"))
-    for (en <- enPatterns) {
-      for (zh <- zhPatterns) {
-        val sim = similarity(en, zh)
-        if (sim > threshold) {
-          w.println(s"${en.pattern}\t${zh.pattern}\t$sim")
-        }
+    for (en <- enPatterns; if(!en.words.isEmpty);
+         zh <- zhPatterns; if(!zh.words.isEmpty);
+      if (RunPatternSimilarity.filter(en, zh))) {
+      val sim = similarity(en, zh)
+      if (sim > threshold) {
+        w.println(s"${en.pattern}\t${zh.pattern}\t$sim")
       }
     }
     w.flush()
@@ -41,15 +41,20 @@ trait UsingWordSim extends PatternSimilarity {
 }
 
 object RunPatternSimilarity {
+  def filter(p1: Pattern, p2: Pattern): Boolean = p1.cat == p2.cat && p1.ners == p2.ners
+
   def readFile(file: String): Seq[Pattern] = {
     val result = new ArrayBuffer[Pattern]
     val source = io.Source.fromFile(file, "UTF-8")
-    for (l <- source.getLines()) {
+    for (l <- source.getLines(); if (!l.startsWith("REL$"))) {
       val split = l.split("\t")
       val pat = split(0).trim
-      val words = split.slice(1, split.length - 1).map(_.trim).toSeq
+      val cat = split(0).take(6)
+      val ner1 = split(1).trim
+      val ner2 = split(2).trim
+      val words = split.slice(3, split.length - 1).map(_.trim).toSeq
       val count = split.last.trim.toInt
-      result += Pattern(pat, words, count)
+      result += Pattern(pat, cat, ner1 -> ner2, words, count)
     }
     source.close()
     result
