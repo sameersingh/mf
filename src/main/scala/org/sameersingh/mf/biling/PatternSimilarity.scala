@@ -41,10 +41,16 @@ trait UsingWordSim extends PatternSimilarity {
 }
 
 object RunPatternSimilarity {
-  def nerMatch(nerEn: String, nerZh: String): Boolean = nerEn match {
-    case "PERSON" => nerEn == nerZh
-    case "ORGANIZATION" => Set("ORG", "GPE").contains(nerZh)
-    case "LOCATION" => Set("LOC", "GPE").contains(nerZh)
+  def nerMatch(nerEn: String, nerZh: String): Boolean = {
+    assert(Set("PERSON", "GPE", "LOC", "ORG") contains nerZh, nerZh + " is not a supported zh NER.")
+    nerEn match {
+      case "PERSON" => nerEn == nerZh
+      case "ORGANIZATION" => Set("ORG", "GPE").contains(nerZh)
+      case "LOCATION" => Set("LOC", "GPE").contains(nerZh)
+      case "DATE" => false
+      case "NUMBER" => false
+      case "O" => false
+    }
   }
 
   def filter(p1: Pattern, p2: Pattern): Boolean = p1.cat == p2.cat && nerMatch(p1.ners._1, p2.ners._1) && nerMatch(p1.ners._2, p2.ners._2)
