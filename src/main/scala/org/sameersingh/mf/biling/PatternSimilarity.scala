@@ -21,14 +21,19 @@ trait PatternSimilarity extends Logging {
     logger.info(" # en patterns: " + enPatterns.length)
     val zhPatterns = RunPatternSimilarity.readFile(zhFile)
     logger.info(" # zh patterns: " + zhPatterns.length)
-    val w = new PrintWriter(new OutputStreamWriter(new FileOutputStream(output), "UTF-8"))
+    val scores = new ArrayBuffer[(Pattern, Pattern, Double)]
     for (en <- enPatterns; if (!en.words.isEmpty);
          zh <- zhPatterns; if (!zh.words.isEmpty);
          if (RunPatternSimilarity.filter(en, zh))) {
       val sim = similarity(en, zh)
       if (sim > threshold) {
-        w.println(s"${en.pattern}\t${zh.pattern}\t$sim")
+        scores += Triple(en, zh, sim)
       }
+    }
+    logger.info(s"Similarity computed over ${scores.size} pairs, now sorting and writing.")
+    val w = new PrintWriter(new OutputStreamWriter(new FileOutputStream(output), "UTF-8"))
+    for ((en, zh, sim) <- scores.sortBy(-_._3)) {
+      w.println(s"${en.pattern}\t${zh.pattern}\t$sim")
     }
     w.flush()
     w.close()
