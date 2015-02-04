@@ -22,9 +22,9 @@ trait PatternSimilarity extends Logging {
     val zhPatterns = RunPatternSimilarity.readFile(zhFile)
     logger.info(" # zh patterns: " + zhPatterns.length)
     val w = new PrintWriter(new OutputStreamWriter(new FileOutputStream(output), "UTF-8"))
-    for (en <- enPatterns; if(!en.words.isEmpty);
-         zh <- zhPatterns; if(!zh.words.isEmpty);
-      if (RunPatternSimilarity.filter(en, zh))) {
+    for (en <- enPatterns; if (!en.words.isEmpty);
+         zh <- zhPatterns; if (!zh.words.isEmpty);
+         if (RunPatternSimilarity.filter(en, zh))) {
       val sim = similarity(en, zh)
       if (sim > threshold) {
         w.println(s"${en.pattern}\t${zh.pattern}\t$sim")
@@ -41,7 +41,13 @@ trait UsingWordSim extends PatternSimilarity {
 }
 
 object RunPatternSimilarity {
-  def filter(p1: Pattern, p2: Pattern): Boolean = p1.cat == p2.cat && p1.ners == p2.ners
+  def nerMatch(nerEn: String, nerZh: String): Boolean = nerEn match {
+    case "PERSON" => nerEn == nerZh
+    case "ORGANIZATION" => Set("ORG", "GPE").contains(nerZh)
+    case "LOCATION" => Set("LOC", "GPE").contains(nerZh)
+  }
+
+  def filter(p1: Pattern, p2: Pattern): Boolean = p1.cat == p2.cat && nerMatch(p1.ners._1, p2.ners._1) && nerMatch(p1.ners._2, p2.ners._2)
 
   def readFile(file: String): Seq[Pattern] = {
     val result = new ArrayBuffer[Pattern]
@@ -71,8 +77,8 @@ object RunPatternSimilarity {
 
 class MaxOverWordPairs(val wordSim: WordSimilarity) extends UsingWordSim {
   override def similarity(en: Pattern, zh: Pattern): Double = {
-    val scores = for(enW <- en.words; zhW <- zh.words) yield (enW, zhW, wordSim.sim(enW, zhW))
-    if(scores.isEmpty) Double.NegativeInfinity
+    val scores = for (enW <- en.words; zhW <- zh.words) yield (enW, zhW, wordSim.sim(enW, zhW))
+    if (scores.isEmpty) Double.NegativeInfinity
     else scores.maxBy(_._3)._3
   }
 }
