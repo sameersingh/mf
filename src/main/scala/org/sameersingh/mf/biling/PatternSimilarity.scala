@@ -110,6 +110,23 @@ object FactorSimilarity extends Logging {
     HashMap(result: _*)
   }
 
+  def allPairsSimilarity(file: String, factors: Map[String, Array[Double]]): Unit = {
+    logger.info("All pairs similarity.")
+    val results = new ArrayBuffer[(String, String, Double)]
+    for (p1 <- factors.keys;
+         p2 <- factors.keys;
+         if (p1 < p2)) {
+      results += Triple(p1, p2, similarity(p1, p2, factors))
+    }
+    logger.info("Sorting " + results.size + " pairs.")
+    val sorted = results.sortBy(-_._3)
+    logger.info("Writing")
+    val afile = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(file)), "UTF-8"))
+    sorted.foreach(p => afile.println("%s\t%s\t%f".format(p._1, p._2, p._3)))
+    afile.flush()
+    afile.close()
+  }
+
   def similarity(p1: String, p2: String, factors: Map[String, Array[Double]]): Double = {
     val f1 = factors(p1)
     val f2 = factors(p2)
@@ -128,9 +145,10 @@ object FactorSimilarity extends Logging {
     val dir = "data/muling-re/debug"
     val factors = readFactors(dir + "/item.factor.gz")
     val s = io.Source.fromInputStream(new GZIPInputStream(new FileInputStream(dir + "/alignSorted.txt.gz")))("UTF-8")
-    val afile = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(dir + "/patterns.sim.aligned.gz")), "UTF-8"))
+    allPairsSimilarity(dir + "/patterns.sim.all.gz", factors)
     logger.info("Reading alignment pairs")
     val result = new ArrayBuffer[(String, String, Double, Double)]
+    val afile = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(dir + "/patterns.sim.aligned.gz")), "UTF-8"))
     for (l <- s.getLines) {
       val split = l.split("\t")
       assert(split.length == 3)
