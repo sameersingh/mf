@@ -80,7 +80,7 @@ object RunPatternSimilarity {
   def main(args: Array[String]): Unit = {
     val ws = new BilingEmbeddingScores()
     val ps = new MaxOverWordPairs(ws)
-    val threshold = -3.0
+    val threshold = 0.05
     val output = "data/muling-re/pattern-sim.max.tsv"
     ps.process("data/muling-re/pattern.en", "data/muling-re/pattern.zh", threshold, output)
   }
@@ -89,7 +89,7 @@ object RunPatternSimilarity {
 class MaxOverWordPairs(val wordSim: WordSimilarity) extends UsingWordSim {
   override def similarity(en: Pattern, zh: Pattern): Double = {
     val scores = for (enW <- en.words; zhW <- zh.words) yield (enW, zhW, wordSim.sim(enW, zhW))
-    if (scores.isEmpty) Double.NegativeInfinity
-    else scores.maxBy(_._3)._3
+    if (scores.isEmpty) 0.0
+    else math.exp(scores.maxBy(_._3)._3)
   }
 }
