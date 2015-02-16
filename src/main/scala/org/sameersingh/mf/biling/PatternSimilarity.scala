@@ -101,13 +101,13 @@ object FactorSimilarity extends Logging {
     logger.info("Reading factors")
     val result = new ArrayBuffer[(String, Array[Double])]
     val s = io.Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))("UTF-8")
-    for(l <- s.getLines()) {
+    for (l <- s.getLines()) {
       val split = l.split("\\t")
       assert(split.length == 2)
       result += split(0) -> split(1).split(" ").map(_.toDouble)
     }
     s.close
-    HashMap(result:_*)
+    HashMap(result: _*)
   }
 
   def similarity(p1: String, p2: String, factors: Map[String, Array[Double]]): Double = {
@@ -116,12 +116,12 @@ object FactorSimilarity extends Logging {
     var sum1sq = 0.0
     var sum2sq = 0.0
     var dot = 0.0
-    for((d1,d2) <- f1.zip(f2)) {
-      dot += d1*d2
-      sum1sq += d1*d1
-      sum2sq += d2*d2
+    for ((d1, d2) <- f1.zip(f2)) {
+      dot += d1 * d2
+      sum1sq += d1 * d1
+      sum2sq += d2 * d2
     }
-    dot / (math.sqrt(sum1sq)*math.sqrt(sum2sq))
+    dot / (math.sqrt(sum1sq) * math.sqrt(sum2sq))
   }
 
   def main(args: Array[String]): Unit = {
@@ -131,7 +131,7 @@ object FactorSimilarity extends Logging {
     val afile = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(dir + "/patterns.sim.aligned.gz")), "UTF-8"))
     logger.info("Reading alignment pairs")
     val result = new ArrayBuffer[(String, String, Double, Double)]
-    for(l <-  s.getLines) {
+    for (l <- s.getLines) {
       val split = l.split("\t")
       assert(split.length == 3)
       val enp = split(0)
