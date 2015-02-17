@@ -21,13 +21,18 @@ import scala.util.matching.Regex
 
 object EvaluateNAACL extends App {
   val baseDir = "data/muling-re/eval"
-  val lang = args.lift(0).getOrElse("en")
-  val methods = Seq("mono", "biling", "biling.50000", "biling.100000", "biling.500000")
-  new EvaluateNAACL(lang, methods, baseDir).eval()
+  val lang = Seq("en", "zh")
+  val alph = args.lift(0).getOrElse("a1.0")
+  val rules = Seq(500000, 1000000, 1500000, 2000000, 2500000) // 100000,
+  lang.foreach(l => new EvaluateNAACL(l, alph, rules, baseDir).eval())
 }
 
-class EvaluateNAACL(lang: String, methods: Seq[String], baseDir: String) {
-  val goldFile = new File(s"$baseDir/rank-$lang-${methods.head}.txt")
+class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String) {
+  val goldFile = new File(s"$baseDir/rank-$lang-mono.txt")
+  val rankFileNamesAndLabels = Seq(s"$baseDir/rank-$lang-mono.txt:$lang-mono") ++
+    Seq(s"$baseDir/rank-$lang-biling.txt:$lang-biling") ++ rules.map(r => s"$baseDir/$alph/rank-$lang-biling.$r.txt:$lang-biling.$r")
+
+
   //Conf.getString("eval.gold")
   val targetPatterns = List("org:location_of_headquarters",
     "org:member_of", "org:members", "org:parents", "org:subsidiaries",
@@ -39,7 +44,6 @@ class EvaluateNAACL(lang: String, methods: Seq[String], baseDir: String) {
   // 0 counts in Chinese: "per:other_family"
 
   def eval(): Double = {
-    val rankFileNamesAndLabels = methods.map(m => s"$baseDir/rank-$lang-$m.txt:$lang-$m")
     val rankFileNamesAndLabelsSplit = rankFileNamesAndLabels.map(name =>
       if (name.contains(":")) Array(name.substring(0, name.lastIndexOf(":")), name.substring(name.lastIndexOf(":") + 1))
       else Array(name, new File(name).getName)
@@ -51,13 +55,8 @@ class EvaluateNAACL(lang: String, methods: Seq[String], baseDir: String) {
     val relPatterns = targetPatterns.map(_.r).toSeq
 
     //    evaluate(rankFiles, goldFile, new PrintStream("out/latest/eval.txt"), relPatterns, labels)
-    new File(s"$baseDir/$lang/").mkdirs()
-    EvaluationTool.evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, pathToGnuplotFile = s"$baseDir/$lang/")
+    evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, pathToGnuplotFile = s"$baseDir/$alph/")
   }
-}
-
-
-object EvaluationTool {
   /*
   def main(args: Array[String]) {
     Conf.add("./wolfe-apps/conf/eval.conf")
@@ -82,7 +81,7 @@ object EvaluationTool {
   */
 
   @tailrec
-  def factorial(n: Double, result: Double = 1): Double = if (n == 0) result else factorial(n - 1, result * n)
+  final def factorial(n: Double, result: Double = 1): Double = if (n == 0) result else factorial(n - 1, result * n)
 
   def nOverK(n: Double, k: Double) = factorial(n) / (factorial(k) * factorial(n - k))
 
@@ -350,12 +349,15 @@ object EvaluationTool {
 
     println(s"Evaluation on ${perFileEvals.size} files...")
 
-    val latexOutput = new FileWriter(pathToEvaluationOutput + "/table.tex")
-    val textOutput = new FileWriter(pathToEvaluationOutput + "/table.txt")
+    val latexOutput = new FileWriter(pathToEvaluationOutput + s"/$lang-table.tex")
+    val textOutput = new FileWriter(pathToEvaluationOutput + s"/$lang-table.txt")
     printLatexTable(latexOutput)
     printTextTable(textOutput)
     latexOutput.close()
     textOutput.close()
+    val cmd = s"cd $pathToEvaluationOutput; latexmk -pdf $lang-table.tex"
+    println("Running: " + cmd)
+    Runtime.getRuntime.exec(cmd)
 
     //print pairwise comparisons
     out.println(("name" +: perFileEvals.map(_.name)).map(title => "%-13s".format(title)).mkString)
@@ -439,7 +441,7 @@ object EvaluationTool {
       chartRecallPrec.size = Some(3.0, 3.0)
       val plotterRecallPrec = new GnuplotPlotter(chartRecallPrec)
       try {
-        plotterRecallPrec.pdf(pathToEvaluationOutput, "11pointPrecRecall")
+        plotterRecallPrec.pdf(pathToEvaluationOutput, lang + "-11pointPrecRecall")
       } catch {
         case e: Exception => println("Could not draw precision graph, error message " + e.getMessage)
       }
