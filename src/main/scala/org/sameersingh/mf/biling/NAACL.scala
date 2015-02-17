@@ -122,7 +122,7 @@ object EvaluationTool {
   def evaluateBinary(rankFiles: Seq[File], gold: File, out: PrintStream,
                      relPatterns: Seq[Regex], // = Conf.getStringList("eval.targets").toSeq.map(_.r),
                      names: Seq[String], pathToGnuplotFile: String = "eval/"): Double = {
-    val runDepth = 1000 //Conf.conf.getInt("eval.run-depth")
+    val runDepth = Int.MaxValue //Conf.conf.getInt("eval.run-depth")
     evaluate(rankFiles.zip(names).toSeq,
       loadAnnotations(new FileInputStream(gold)),
       out,
