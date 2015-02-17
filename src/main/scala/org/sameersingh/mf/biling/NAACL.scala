@@ -122,14 +122,12 @@ object EvaluationTool {
   def evaluateBinary(rankFiles: Seq[File], gold: File, out: PrintStream,
                      relPatterns: Seq[Regex], // = Conf.getStringList("eval.targets").toSeq.map(_.r),
                      names: Seq[String], pathToGnuplotFile: String = "eval/"): Double = {
-    val poolDepth = 100 //Conf.conf.getInt("eval.pool-depth")
     val runDepth = 1000 //Conf.conf.getInt("eval.run-depth")
     evaluate(rankFiles.zip(names).toSeq,
       loadAnnotations(new FileInputStream(gold)),
       out,
       relPatterns,
       l => extractBinaryFactFromLine(l),
-      poolDepth,
       runDepth,
       pathToGnuplotFile)
   }
@@ -139,10 +137,9 @@ object EvaluationTool {
                out: PrintStream,
                relPatterns: Seq[Regex],
                extractFactFromLine: String => (List[String], String),
-               poolDepth: Int,
                runDepth: Int,
                pathToEvaluationOutput: String = "eval/"): Double = {
-
+    val poolDepth = 100
     val allowedFacts = new mutable.HashMap[Regex, mutable.HashSet[(List[String], String)]]()
     println("Collecting facts from rank files")
     //println(rankFileNames.mkString("\t"))
@@ -177,7 +174,7 @@ object EvaluationTool {
         if (pattern.findFirstIn(annotation.label).isDefined) {
           val facts = allowedFacts.get(pattern)
           val allowed = facts.map(_.apply(annotation.fact))
-          if (allowed.getOrElse(false)) {
+          if (true) { //allowed.getOrElse(false)) {
             val eval = globalEvals.getOrElseUpdate(pattern, new Eval(pattern))
             annotation.correct match {
               case true =>
