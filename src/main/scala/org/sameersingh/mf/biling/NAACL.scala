@@ -139,7 +139,7 @@ object EvaluationTool {
                extractFactFromLine: String => (List[String], String),
                runDepth: Int,
                pathToEvaluationOutput: String = "eval/"): Double = {
-    val poolDepth = 100
+    val poolDepth = Int.MaxValue // 100
     val allowedFacts = new mutable.HashMap[Regex, mutable.HashSet[(List[String], String)]]()
     println("Collecting facts from rank files")
     //println(rankFileNames.mkString("\t"))
@@ -174,7 +174,7 @@ object EvaluationTool {
         if (pattern.findFirstIn(annotation.label).isDefined) {
           val facts = allowedFacts.get(pattern)
           val allowed = facts.map(_.apply(annotation.fact))
-          if (true) { //allowed.getOrElse(false)) {
+          if (allowed.getOrElse(false)) {
             val eval = globalEvals.getOrElseUpdate(pattern, new Eval(pattern))
             annotation.correct match {
               case true =>
