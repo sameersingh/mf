@@ -20,44 +20,41 @@ import scala.util.matching.Regex
 
 
 object EvaluateNAACL extends App {
-  val configFile = args.lift(0).getOrElse("./conf/eval.conf")
-  val pathToLatestPredictions = args.lift(1).getOrElse("data/muling-re/eval/rank.txt.gz")
-  new EvaluateNAACL(configFile, pathToLatestPredictions).eval()
+  val baseDir = "data/muling-re/eval"
+  val lang = args.lift(0).getOrElse("en")
+  val methods = Seq("mono", "biling")
+  new EvaluateNAACL(lang, methods, baseDir).eval()
 }
 
-class EvaluateNAACL(configFile: String, pathToLatestPredictions: String) {
-  val goldFile = new File("") //Conf.getString("eval.gold")
-  val targetPatterns = List("") // Conf.getStringList("eval.targets")
+class EvaluateNAACL(lang: String, methods: Seq[String], baseDir: String) {
+  val goldFile = new File(s"$baseDir/rank-$lang-${methods.head}.txt")
+  //Conf.getString("eval.gold")
+  val targetPatterns = List("org:location_of_headquarters",
+    "org:member_of", "org:members", "org:parents", "org:subsidiaries",
+    "org:top_members_employees", "organization.organization.founders",
+    "people.deceased_person.place_of_death", "people.person.children",
+    "people.person.parents", "people.person.place_lived", "people.person.place_of_birth",
+    "people.person.spouse", "per:employee_or_member_of", "per:origin", "per:religion", "per:schools_attended", "per:siblings")
+  // Chinese but not English: org:city_of_headquarters, org:country_of_headquarters, org:stateorprovince_of_headquarters
+  // 0 counts in Chinese: "per:other_family"
 
   def eval(): Double = {
-    val pathToLatest = pathToLatestPredictions.split("/").init.mkString("/") + "/"
-    // Conf.add(configFile)
-
-    val rankFileNamesAndLabels = Seq(pathToLatestPredictions + ":latest",
-      //"./data/naacl2013/structured/test-rockt-F.txt:rockt-F",
-      "./data/naacl2013/structured/test-mintz09.txt:Mintz09",
-      "./data/naacl2013/structured/test-yao11.txt:Yao11",
-      "./data/naacl2013/structured/test-surdeanu12.txt:Surdeanu12",
-      //"./data/naacl2013/structured/test-riedel13-model-N.txt:N",
-      "./data/naacl2013/structured/test-riedel13-model-F.txt:Riedel13-F",
-      //"./data/naacl2013/structured/test-riedel13-model-NFE.txt:NFE",
-      "./data/naacl2013/structured/test-riedel13-model-NF.txt:Riedel13-NF"
-    )
+    val rankFileNamesAndLabels = methods.map(m => s"$baseDir/rank-$lang-$m.txt:$lang-$m")
     val rankFileNamesAndLabelsSplit = rankFileNamesAndLabels.map(name =>
-      if (name.substring(3).contains(":")) Array(name.substring(0, name.lastIndexOf(":")), name.substring(name.lastIndexOf(":")) + 1)
+      if (name.contains(":")) Array(name.substring(0, name.lastIndexOf(":")), name.substring(name.lastIndexOf(":") + 1))
       else Array(name, new File(name).getName)
     ).toSeq
-
+    println(rankFileNamesAndLabelsSplit.map(_.toSeq.mkString("\t")).mkString("\n"))
     val rankFileNames = rankFileNamesAndLabelsSplit.map(_.apply(0))
     val labels = rankFileNamesAndLabelsSplit.map(_.apply(1))
     val rankFiles = rankFileNames.map(new File(_))
     val relPatterns = targetPatterns.map(_.r).toSeq
 
     //    evaluate(rankFiles, goldFile, new PrintStream("out/latest/eval.txt"), relPatterns, labels)
-    EvaluationTool.evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, pathToGnuplotFile = pathToLatest)
+    new File(s"$baseDir/$lang/").mkdirs()
+    EvaluationTool.evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, pathToGnuplotFile = s"$baseDir/$lang/")
   }
 }
-
 
 
 object EvaluationTool {
@@ -487,6 +484,7 @@ object EvaluationTool {
   }
 
   type Entity = String
+
   class Annotation(val tuple: List[Entity], val label: String, val correct: Boolean) {
     override def toString = "%s\t%s\t%s" format(if (correct) "1" else "0", label, tuple)
 
@@ -498,11 +496,11 @@ object EvaluationTool {
     val result = new mutable.HashMap[(List[Entity], String), Annotation]()
     for (line <- Source.fromInputStream(in).getLines()) {
       val fields = line.split("\\t")
-      val correct = fields(0) == "1"
-      val label = fields(1)
-      val args = fields.drop(2).toSeq
-      val tuple = List(args(0),args(1))
-      result(tuple -> label) = new Annotation(tuple, label, correct)
+      val correct = true //fields(0) == "1"
+      val rel = fields(3)
+      val args = fields.drop(1).take(2).toSeq
+      val tuple = List(args(0), args(1))
+      result(tuple -> rel) = new Annotation(tuple, rel, correct)
       for (o <- out) o.println(line)
     }
     result.toMap
@@ -618,8 +616,8 @@ class Eval(val pattern: Regex) {
       |Avg Prec#:     %d
       |MAP:           %f
       |Prec. at K:    %s""".stripMargin.format(pattern.toString(), relations.mkString(","),
-      totalGuess, totalGoldTrue, totalGoldFalse, tp,
-      precision, recall, avgPrecision, precisionCount, meanAvgPrecision, precisionAtK.mkString(", "))
+        totalGuess, totalGoldTrue, totalGoldFalse, tp,
+        precision, recall, avgPrecision, precisionCount, meanAvgPrecision, precisionAtK.mkString(", "))
   }
 }
 
