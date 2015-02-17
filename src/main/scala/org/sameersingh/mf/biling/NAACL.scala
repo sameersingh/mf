@@ -22,7 +22,7 @@ import scala.util.matching.Regex
 object EvaluateNAACL extends App {
   val baseDir = "data/muling-re/eval"
   val lang = args.lift(0).getOrElse("en")
-  val methods = Seq("mono", "biling")
+  val methods = Seq("mono", "biling", "biling.50000", "biling.100000", "biling.500000")
   new EvaluateNAACL(lang, methods, baseDir).eval()
 }
 
