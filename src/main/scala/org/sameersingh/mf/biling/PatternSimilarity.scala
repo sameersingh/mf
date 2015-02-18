@@ -96,6 +96,25 @@ class MaxOverWordPairs(val wordSim: WordSimilarity) extends UsingWordSim {
   }
 }
 
+class MeanMaxForEachWord(val wordSim: WordSimilarity) extends UsingWordSim {
+  override def similarity(en: Pattern, zh: Pattern): Double = {
+    if(en.words.isEmpty || zh.words.isEmpty) return 0.0
+    var enSim = 0.0
+    for (enW <- en.words) {
+      val scores = for(zhW <- zh.words) yield (enW, zhW, wordSim.sim(enW, zhW))
+      enSim += scores.maxBy(_._3)._3
+    }
+    enSim /= en.words.length.toDouble
+    var zhSim = 0.0
+    for (zhW <- zh.words) {
+      val scores = for(enW <- en.words) yield (enW, zhW, wordSim.sim(enW, zhW))
+      zhSim += scores.maxBy(_._3)._3
+    }
+    zhSim /= zh.words.length.toDouble
+    (enSim + zhSim)/2.0
+  }
+}
+
 object FactorSimilarity extends Logging {
   def readFactors(file: String): Map[String, Array[Double]] = {
     logger.info("Reading factors")
