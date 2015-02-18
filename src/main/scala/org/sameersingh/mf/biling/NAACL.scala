@@ -18,22 +18,16 @@ import scala.util.matching.Regex
  * @author rockt
  */
 
-
 object EvaluateNAACL extends App {
   val baseDir = "data/muling-re/eval"
   val lang = Seq("en", "zh")
+  val poolDepth = 100
   val alph = args.lift(0).getOrElse("a1.0")
   val rules = Seq(500000, 1000000, 1500000, 2000000, 2500000) // 100000,
-  lang.foreach(l => new EvaluateNAACL(l, alph, rules, baseDir).eval())
-}
-
-class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String) {
-  val goldFile = new File(s"$baseDir/rank-$lang-mono.txt")
   val rankFileNamesAndLabels = Seq(s"$baseDir/rank-$lang-mono.txt:$lang-mono") ++
-    Seq(s"$baseDir/rank-$lang-biling.txt:$lang-biling") ++ rules.map(r => s"$baseDir/$alph/rank-$lang-biling.$r.txt:$lang-biling.$r")
-
-
-  //Conf.getString("eval.gold")
+      Seq(s"$baseDir/rank-$lang-biling.txt:$lang-biling") ++ rules.map(r => s"$baseDir/$alph/rank-$lang-biling.$r.txt:$lang-biling.$r")
+  val goldFile = new File(s"$baseDir/rank-$lang-mono.txt")
+  val outputDir  = s"$baseDir/$alph/"
   val targetPatterns = List("org:location_of_headquarters",
     "org:member_of", "org:members", "org:parents", "org:subsidiaries",
     "org:top_members_employees", "organization.organization.founders",
@@ -42,20 +36,35 @@ class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String
     "people.person.spouse", "per:employee_or_member_of", "per:origin", "per:religion", "per:schools_attended", "per:siblings")
   // Chinese but not English: org:city_of_headquarters, org:country_of_headquarters, org:stateorprovince_of_headquarters
   // 0 counts in Chinese: "per:other_family"
+  lang.foreach(l => new EvaluateNAACL(l).eval(poolDepth, rankFileNamesAndLabels, goldFile, outputDir, targetPatterns))
+}
 
-  def eval(): Double = {
+object PoolEvaluation {
+  import scala.collection.JavaConversions._
+  def run(enFiles: java.util.ArrayList[String], zhFiles: java.util.ArrayList[String], poolDepth: Int, outputDir: String): Unit = {
+    println("Pool Evaluation: en")
+    val enGoldFile = new File(enFiles.find(_.contains("mono")).get)
+    new EvaluateNAACL("en").eval(poolDepth, enFiles, enGoldFile, outputDir, EvaluateNAACL.targetPatterns)
+    println("Pool Evaluation: zh")
+    val zhGoldFile = new File(zhFiles.find(_.contains("mono")).get)
+    new EvaluateNAACL("zh").eval(poolDepth, zhFiles, zhGoldFile, outputDir, EvaluateNAACL.targetPatterns)
+  }
+}
+
+class EvaluateNAACL(lang: String) {
+  //Conf.getString("eval.gold")
+  def eval(poolDepth: Int, rankFileNamesAndLabels: Seq[String], goldFile: File, outputDir: String, targetPatterns: List[String]): Double = {
     val rankFileNamesAndLabelsSplit = rankFileNamesAndLabels.map(name =>
       if (name.contains(":")) Array(name.substring(0, name.lastIndexOf(":")), name.substring(name.lastIndexOf(":") + 1))
-      else Array(name, new File(name).getName)
+      else Array(name, new File(name).getName.replaceAll("rank-", ""))
     ).toSeq
     println(rankFileNamesAndLabelsSplit.map(_.toSeq.mkString("\t")).mkString("\n"))
     val rankFileNames = rankFileNamesAndLabelsSplit.map(_.apply(0))
     val labels = rankFileNamesAndLabelsSplit.map(_.apply(1))
     val rankFiles = rankFileNames.map(new File(_))
     val relPatterns = targetPatterns.map(_.r).toSeq
-
     //    evaluate(rankFiles, goldFile, new PrintStream("out/latest/eval.txt"), relPatterns, labels)
-    evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, pathToGnuplotFile = s"$baseDir/$alph/")
+    evaluateBinary(rankFiles, goldFile, System.out, relPatterns, labels, poolDepth, outputDir)
   }
   /*
   def main(args: Array[String]) {
@@ -120,14 +129,15 @@ class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String
 
   def evaluateBinary(rankFiles: Seq[File], gold: File, out: PrintStream,
                      relPatterns: Seq[Regex], // = Conf.getStringList("eval.targets").toSeq.map(_.r),
-                     names: Seq[String], pathToGnuplotFile: String = "eval/"): Double = {
-    val runDepth = Int.MaxValue //Conf.conf.getInt("eval.run-depth")
+                     names: Seq[String],
+                     poolDepth: Int,
+                     pathToGnuplotFile: String = "eval/"): Double = {
     evaluate(rankFiles.zip(names).toSeq,
       loadAnnotations(new FileInputStream(gold)),
       out,
       relPatterns,
       l => extractBinaryFactFromLine(l),
-      runDepth,
+      poolDepth,
       pathToGnuplotFile)
   }
 
@@ -136,9 +146,8 @@ class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String
                out: PrintStream,
                relPatterns: Seq[Regex],
                extractFactFromLine: String => (List[String], String),
-               runDepth: Int,
+               poolDepth: Int = Int.MaxValue,
                pathToEvaluationOutput: String = "eval/"): Double = {
-    val poolDepth = Int.MaxValue // 100
     val allowedFacts = new mutable.HashMap[Regex, mutable.HashSet[(List[String], String)]]()
     println("Collecting facts from rank files")
     //println(rankFileNames.mkString("\t"))
@@ -194,7 +203,7 @@ class EvaluateNAACL(lang: String, alph: String, rules: Seq[Int], baseDir: String
     println("Loading Rank Files")
     //todo: first make sure that for each pattern and system we are using at most K
     //todo: annotations from that system
-
+    val runDepth = Int.MaxValue
     for ((rankFile, name) <- rankFileNames) {
       val perFile = PerFileEvals(rankFile, name)
       import perFile._
